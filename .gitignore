@@ -129,3 +129,6 @@ netlog.json
 ground_truth/
 *ground_truth*
 
+# Scratch directory
+scratch/
+

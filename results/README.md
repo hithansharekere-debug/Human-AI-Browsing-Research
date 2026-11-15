@@ -175,7 +175,7 @@ Evaluates the stability of the primary `B6_core6` model against 7 methodological
 
 ### 2.7 `drift_checks.csv`
 Physical network and OS background stability checks across collection days.
-- `tcp_handshake_rtt_drift`: Median handshake RTT to task server (`meridian-tasks.vercel.app`) was constant at $25.40\text{ ms}$ with standard deviation $< 10^{-14}\text{ ms}$, ruling out physical WAN routing latency shifts.
+- `tcp_handshake_rtt_drift`: Reflects a baseline TCP handshake RTT benchmark ($25.40\text{ ms}$). Independent audit (DEV-06) notes this was recorded as a static benchmark scalar across sessions (accounting for std $< 10^{-14}\text{ ms}$); physical packet traces show base RTTs of 17–27 ms with variable jitter. Handshake RTT to a single origin cannot rule out physical network or environmental drift across collection days.
 - `chrome_updater_gvt1_human_day_confound`: Google Chrome component updater (`*.gvt1.com`) was active in 33 of 52 human windows and 0 agent windows, transferring an average of 121 KB of background traffic.
 - `spotify_human_sessions_presence`: Desktop Spotify background traffic was present in 23 of 52 human sessions and 0 agent sessions.
 - *Both OS background sources are fully isolated by the website-flow filtering pipeline and do not contaminate website features.*

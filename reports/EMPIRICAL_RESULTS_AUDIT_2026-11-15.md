@@ -130,7 +130,7 @@ In response to the audit instruction, an independent, rigorous audit was execute
 
 ### E. Sensitivity Analysis Inventory & Execution Verification
 All 7 preregistered sensitivity analyses specified in `analysis/PREREG.md` §6 were executed:
-1. **Day Confound & Network Drift (`results/drift_checks.csv`):** Evaluated TCP handshake RTT constancy ($25.40\text{ ms}$, std $< 10^{-14}\text{ ms}$), Chrome updater presence (33 human vs 0 agent), Spotify presence (23 human vs 0 agent), and OS background byte asymmetry.
+1. **Day Confound & Network Drift (`results/drift_checks.csv`):** Evaluated TCP handshake RTT benchmark ($25.40\text{ ms}$, documented under DEV-06 as a static benchmark scalar; physical packet traces exhibit 17–27 ms base RTTs and cannot rule out drift), Chrome updater presence (33 human vs 0 agent), Spotify presence (23 human vs 0 agent), and OS background byte asymmetry.
 2. **Unequal Rounds Analysis (`results/round_check.csv`):** Evaluated Round 1 vs Round 2 stability for P01–P03 (all $|\delta| \le 0.273$) and refitted B6 on Round 1 sessions only ($N=80$, $\text{AUROC} = 0.808$).
 3. **Edge PDF / MSN News Sessions Ablation (`results/sensitivity.csv`):** Refitted B6 excluding `S0044`, `S0068`, and `S0081` ($\text{AUROC} = 0.766$, $\Delta = -0.011$).
 4. **S0062 Window Reconstruction (`results/sensitivity.csv`):** Evaluated B6 on $N=92$ population with S0062 window reconstructed from Chrome NetLog ($29.299\text{ s}$, $\text{AUROC} = 0.778$, $\Delta = +0.001$).

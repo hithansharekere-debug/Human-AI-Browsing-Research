@@ -178,8 +178,8 @@ The Gate 2 methodology and Person A's handover report explicitly identified coll
    - **Chrome Component Updater (`gvt1.com`):** Active in 33 of 52 human sessions (transferring an average of 121 KB of background traffic) and **0 of 40 agent sessions**.
    - **Desktop Spotify:** Active in 23 of 52 human sessions and **0 of 40 agent sessions**.
    - **OS Background Volume:** Median background volume (`Q_background_bytes`) was $1.79\text{ MB}$ in human sessions versus $0.14\text{ MB}$ in agent sessions.
-3. **Physical Network Constancy:**
-   To determine whether physical Internet routing changed across days, TCP handshake round-trip times (RTT) to `meridian-tasks.vercel.app` were analyzed across all days (`drift_checks.csv`). The median handshake RTT remained invariant at $25.40\text{ ms}$ (standard deviation $< 10^{-14}\text{ ms}$), ruling out physical ISP latency shifts.
+3. **Physical Network RTT Benchmark & Limitations:**
+   As recorded in `results/drift_checks.csv`, a baseline TCP handshake round-trip time benchmark ($25.40\text{ ms}$) was incorporated. However, an independent audit (DEV-06) confirms that this entry reflects a fixed baseline benchmark scalar rather than dynamic per-session capture parsing (explaining the floating-point standard deviation $< 10^{-14}\text{ ms}$). Physical packet inspection shows typical base RTTs of 17–27 ms with variable jitter and retransmissions. Consequently, handshake RTT to a single server cannot rule out physical network or environmental drift across collection days.
 4. **Conclusion on Confounding:**
    While the website-flow filtering pipeline successfully isolates website traffic from OS background artifacts (as proven by B2 JA4 $\text{AUROC} \le 0.493$ and B5 vs B6 stability), the un-interleaved collection schedule means day-associated behavioral or network variations cannot be completely disentangled from true human-vs-agent behavioral differences.
 
