@@ -39,20 +39,40 @@ The following empirical findings were established during pre-analysis data hygie
 - **Effect:** Humans naturally typed search queries into Chrome's omnibox, whereas the automated agent navigated directly by clicking or passing full URLs.
 - **Handling:** `www.google.com` and `*.google.com` assigned dedicated class `search` (Family D). Excluded from website-flow features for $B6$. Evaluated in shortcut baseline $B3$. Reported descriptively as a human behavioural phenomenon ("humans use the omnibox"), not as a primary traffic detector.
 
-### F3. Task 1 Search Confound
-- **Evidence:** In Task 1, 8 humans used Google search to find "Meridian task app" because they were not given the direct URL in instructions, while the agent navigated directly.
-- **Effect:** Task 1 human traces contain early search navigation flows absent in agent traces.
-- **Handling:** Sensitivity analysis re-evaluates $B6$ and $B3$ with `search` assigned to `website` vs. excluded as $D$, confirming whether classification is robust across search behaviors.
+### F3. Almost All Traffic is IPv6
+- **Evidence:** About 98% of the bytes inside the window are IPv6, for both classes.
+- **Effect:** Filtering on `ip.*` only would silently drop almost everything.
+- **Handling:** Use `ip` and `ipv6` in every filter and field list; verify that NFStream keeps IPv6 flows (default behavior). Marker packets are IPv4 (`ip.dst==192.0.2.1`).
 
-### F4. Collection Schedule & Interleaving Breakdown
-- **Evidence:** Agent sessions were recorded entirely on 6 Nov (14:35–16:41 UTC). Human sessions were recorded on 7 Nov (09:56–16:40 UTC) and 9 Nov (17:31–18:33 UTC). The originally planned interleaved schedule was broken.
-- **Effect:** Systematic confound between collection day/time and controller class. Environmental drift (e.g. network RTT, ISP routing, external server load) could correlate with the target label.
-- **Handling:** $NC2$ human-vs-human day classification test (7 Nov vs 9 Nov); time-of-day overlap analysis (8 human sessions after 14:00 IST compared with other humans); network drift check (TCP handshake RTT to `meridian-tasks.vercel.app` across days in `results/drift_checks.csv`); binding decision rule: pilot $GO$ can only claim "separable in this dataset", and if $NC2$ fails or RTT drift is significant, proposed outcome must be `CONDITIONAL GO` recommending interleaved re-collection.
+### F4. Corrected Idle-Baseline Numbers
+- **Evidence:** Handover measurements showed that typical background of 100–170 KB/min was only true for 6 Nov; subsequent days exhibited distinct background traffic:
 
-### F5. Unencrypted Chrome NetLog Timestamps & Ground Truth
-- **Evidence:** NetLog files captured out-of-band request timing without inspecting payload bytes.
-- **Effect:** Enables independent verification of window boundaries and task request timing without violating zero-payload rules.
-- **Handling:** Used specifically to reconstruct the legitimate task execution window for session $S0062$ in sensitivity analysis, without altering the raw capture or `sessions.csv`.
+| ID | Day | KB/min in window | What dominates | Use as baseline? |
+|---|---|---|---|---|
+| I0001 | 6 Nov | 1,164 | Chrome download on first idle run, plus NVIDIA and HP software | No (outlier) |
+| I0002 | 6 Nov | 127 | msn, Chrome client services, Office | Yes (matches agent day) |
+| I0003 | 6 Nov | 57 | Same | Yes (matches agent day) |
+| I0004 | 7 Nov | 12,910 | Windows Update / Delivery Optimization (`14.102.231.202`) | No (outlier) |
+| I0005 | 7 Nov | 1,206 | The gvt1 component download (5.3 MB, F1) | Yes, as a "human-day" baseline |
+| I0006 | 9 Nov | 1,259 | The gvt1 component download (F1) | Yes, as a "human-day" baseline |
+| I0007 | 9 Nov | 25,616 | Windows Update / Delivery Optimization (`14.102.231.203`, `*.delivery.mp.microsoft.com`) | No (outlier) |
+| I0008 | 9 Nov | 1,209 | The gvt1 component download (F1) | Yes, as a "human-day" baseline |
+
+- **Effect:** Demonstrates that unmanaged OS and component update traffic creates apparent day differences if not filtered.
+- **Handling:** Once the `gvt1` flow is removed, 7 and 9 Nov idles fall to about 150–190 KB/min, close to 6 Nov (~127 KB/min). This serves as evidence that the background filter makes days comparable. Do not use outliers (I0001, I0004, I0007) to set thresholds.
+
+### F5. Ten Known Collection Issues from 9 Nov Report
+The ten known issues from Person A's 9 Nov collection report remain in effect and are addressed as follows:
+1. **Issue 1 (Day Confound):** Agent and human sessions are on different days (agents 6 Nov 14:35–16:41 IST; humans 7 Nov 09:56–16:40 IST and 9 Nov 17:31–18:33 IST). The schedule was not followed. *Action:* Negative control NC2, time-of-day overlap analysis, TCP handshake RTT drift check, and background bytes by day.
+2. **Issue 2 (Unequal Rounds):** P01–P03 completed 2 rounds; P04–P10 completed 1 round. *Action:* Participant-clustered bootstrap and 10-fold LOPO; compare round 1 vs. round 2 for P01–P03.
+3. **Issue 3 (S0062 Window Duration):** S0062 (P03, T1, round 2) has a window of 0.007 s due to premature ENTER keypress. *Action:* Exclude from primary analysis via `label_corrections.csv`; sensitivity analysis recomputes window from NetLog first/last Meridian request.
+4. **Issue 4 (Edge, Bing, MSN Background):** Heavy in S0044 (P01 T4), S0068 (P04 T3), S0081 (P08 T4) (guide PDF open in Edge); lighter in 16 more sessions. *Action:* Classify `bing.com`, `msn.com`, `edge.microsoft.com`, `microsoftonline.com` as `os_background`; report B6 with and without the 3 heavy sessions.
+5. **Issue 5 (Idle Outliers):** I0001, I0004, I0007. *Action:* Do not use them to set thresholds.
+6. **Issue 6 (Upstream Validation):** Upstream validation not done (`upstream/` is empty). *Action:* Acknowledged as a limitation for Person C and Person D.
+7. **Issue 7 (Datadog in Dry-Run):** Unexplained connection to `http-intake.logs.us5.datadoghq.com` in one dry-run agent capture. *Action:* Label as `vendor` (Family A) if seen; record presence in agent sessions (0 in study sessions).
+8. **Issue 8 (100% Task Success):** 100% success on both sides. *Action:* No outcome stratification possible; note as limitation ("tasks may be easy").
+9. **Issue 9 (S0010 DuckDuckGo Navigation):** S0010 (agent, T2) used DuckDuckGo search during task. *Action:* Destinations differ (Family D); retain and note in analysis.
+10. **Issue 10 (Gemini Quota Errors):** HTTP 429/503 errors occurred in early test runs only, none in study sessions. *Action:* None required.
 
 ---
 
