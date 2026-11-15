@@ -74,7 +74,7 @@ The empirical study ingests Person A's frozen, SHA-256 authenticated `pilot-v1` 
 - **B5 (All-Flows Behavioral Baseline):** Logistic Regression on $T+V+C$ features computed over all flows without website filtering; serves as a pipeline contamination diagnostic.
 - **B6 (`B6_core6` Headline Primary Model):** L2 Logistic Regression ($C=1.0$, fixed, un-tuned) trained on the six core standardized website features.
 - **B6_rf500 (Random Forest Secondary Check):** 500-tree Random Forest classifier, fixed seed `20261106`, un-tuned hyperparameters, trained on the identical six core website features.
-- **B7 (Length-Normalized Baseline):** Logistic Regression on length-normalized B6 features.
+- **B7 (Length-Normalized Baseline):** Logistic Regression on B6 features formulated as duration-normalized rates and dimensionless ratios (numerically identical to B6 by feature-pool definition; see DEV-07).
 - **B8 (Vendor-to-Website Lag Baseline):** Logistic Regression on the latency interval between the initial vendor API request and the first target website TLS handshake.
 
 ---
@@ -120,7 +120,7 @@ The table below summarizes the empirical results extracted from `results/baselin
 | **B5** | Logistic Regression | All Flows ($T+V+C$) | LOTO<br>LOPO | 0.636<br>0.771 | $[0.491, 0.785]$<br>$[0.688, 0.852]$ | 0.597<br>0.640 | Contamination Diagnostic |
 | **B6** | **`B6_core6` LogReg** | **Website Flows ($W$)** | **LOTO**<br>**LOPO** | **0.644**<br>**0.777** | $\mathbf{[0.499, 0.807]}$<br>$\mathbf{[0.699, 0.868]}$ | **0.591**<br>**0.639** | **Headline Primary Model** |
 | **B6_rf500**| 500-tree RF | Website Flows ($W$) | LOTO<br>LOPO | 0.560<br>0.797 | $[0.422, 0.705]$<br>$[0.713, 0.885]$ | 0.543<br>0.725 | Non-Linear Sensitivity Check |
-| **B7** | LogReg (Len-Norm) | Website Flows ($W$) | LOTO<br>LOPO | 0.644<br>0.777 | $[0.499, 0.807]$<br>$[0.699, 0.868]$ | 0.591<br>0.639 | Length-Normalized Model |
+| **B7** | LogReg (Len-Norm) | Website Flows ($W$) | LOTO<br>LOPO | 0.644<br>0.777 | $[0.499, 0.807]$<br>$[0.699, 0.868]$ | 0.591<br>0.639 | Length-Normalized Model (Matches B6, DEV-07) |
 | **B8** | Logistic Regression | Vendor-to-Web Lag | LOTO<br>LOPO | 1.000<br>1.000 | $[1.000, 1.000]$<br>$[1.000, 1.000]$ | 1.000<br>1.000 | Artifactual Lag Diagnostic |
 
 ---

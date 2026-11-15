@@ -59,7 +59,7 @@ Contains evaluation metrics across both pre-registered cross-validation splittin
 - `B4` (LOPO $\text{AUROC} = 0.760$): Window duration alone yields moderate separability because human participants took longer on unstructured research tasks.
 - `B6` (`B6_core6` Logistic Regression, L2, $C=1.0$, 6 core website features): **Headline primary model**. Achieves LOPO $\text{AUROC} = 0.777$ (95% CI $[0.699, 0.868]$) and LOTO $\text{AUROC} = 0.644$ (95% CI $[0.499, 0.807]$).
 - `B6_rf500` (500-tree Random Forest check, fixed seed `20261106`): Confirmatory check, LOPO $\text{AUROC} = 0.797$ (95% CI $[0.713, 0.885]$).
-- `B7` (Length-normalized B6): LOPO $\text{AUROC} = 0.777$, matching B6.
+- `B7` (Length-normalized B6): LOPO $\text{AUROC} = 0.777$, matching B6 bit-for-bit (see DEV-07: B6 was already constructed using duration-normalized rates and ratios, so B7 did not implement an independent residualization).
 - `B8` ($\text{AUROC} = 1.000$): Artifactual lag diagnostic (first vendor API request to first website TLS connection).
 
 ---

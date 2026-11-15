@@ -30,7 +30,7 @@ The package contains exclusively derived, aggregated tabular results. It contain
      - Packet burst separation threshold perturbation ($\theta_b \in \{50, 100, 250\}\text{ ms}$, $\Delta = 0.000$).
 3. `b7_length_normalised_results.csv`:
    - Extracted baseline evaluation rows for **B7** (Length-Normalised website flow features) under both 4-fold Leave-One-Task-Out (LOTO) and 10-fold Leave-One-Participant-Out (LOPO) splits ($N = 91$).
-   - Demonstrates that when features are defined as duration-normalized rates and dimensionless ratios (as done in the core 6 features of B6), the resulting performance is numerically identical to B6.
+   - Demonstrates that when features are defined as duration-normalized rates and dimensionless ratios (as done in the core 6 features of B6), the resulting performance is numerically identical to B6 (documented under DEV-07).
 4. `per_participant_family_results.csv`:
    - Full 70-row tidy matrix containing summary statistics (mean, median, standard deviation) for all 10 human participants (`P01`–`P10`) across all 7 behavioral and diagnostic families ($T, V, C, H, D, L, Q$).
 5. `CLAIM_TO_FILE_INDEX.md`:

@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 
 logger = logging.getLogger("human_ai_egress.window_extraction")
@@ -126,18 +126,20 @@ class WindowExtractor:
 def extract_hardware_marker_bounds(
     pcap_path: Path,
     session_id: str,
-    marker_ip: str = "192.0.2.1",
+    marker_ip: Optional[str] = None,
 ) -> Tuple[Optional[float], Optional[float]]:
     """Extracts hardware UDP marker boundary timestamps from a pcap trace.
 
     According to features/SPEC.md:
-    - Start marker: UDP packet to marker_ip with payload starting with 'P1MARK START <session_id>'
+    - Start marker: UDP packet to marker_ip (IPv4 '192.0.2.1' or IPv6 '2001:db8::1')
+      with payload starting with 'P1MARK START <session_id>'
     - End marker: UDP packet to marker_ip with payload starting with 'P1MARK END <session_id>'
 
     Args:
         pcap_path: Path to the raw .pcapng or .pcap trace.
-        session_id: Session identifier (e.g. 'D0001', 'X0001').
-        marker_ip: Hardware marker destination IP (default '192.0.2.1').
+        session_id: Session identifier (e.g. 'D0001', 'X0001', 'S0001').
+        marker_ip: Hardware marker destination IP. If None, matches either
+                   '192.0.2.1' or '2001:db8::1'.
 
     Returns:
         Tuple of (t_start, t_end) in epoch seconds, or None if marker missing.
@@ -157,22 +159,73 @@ def extract_hardware_marker_bounds(
 
     start_token = f"P1MARK START {session_id}".encode("ascii")
     end_token = f"P1MARK END {session_id}".encode("ascii")
+    valid_marker_ips = {marker_ip} if marker_ip is not None else {"192.0.2.1", "2001:db8::1"}
 
     try:
         packets = scapy.rdpcap(str(pcap_path))
         for p in packets:
-            if p.haslayer(scapy.UDP) and p.haslayer(scapy.IP):
-                if p[scapy.IP].dst == marker_ip:
-                    payload = bytes(p[scapy.UDP].payload)
-                    if payload.startswith(start_token):
-                        t_start = float(p.time)
-                    elif payload.startswith(end_token):
-                        t_end = float(p.time)
-                        if t_start is not None:
-                            break  # Found both markers
+            if not p.haslayer(scapy.UDP):
+                continue
+
+            dst = None
+            if p.haslayer(scapy.IP):
+                dst = p[scapy.IP].dst
+            elif p.haslayer(scapy.IPv6):
+                dst = p[scapy.IPv6].dst
+
+            payload = bytes(p[scapy.UDP].payload) if p[scapy.UDP].payload else b""
+            is_marker_dest = dst in valid_marker_ips if dst else False
+
+            if is_marker_dest or payload.startswith(b"P1MARK"):
+                if payload.startswith(start_token):
+                    t_start = float(p.time)
+                elif payload.startswith(end_token):
+                    t_end = float(p.time)
+                    if t_start is not None:
+                        break  # Found both markers
     except Exception as exc:
         logger.exception("Error extracting markers from %s: %s", pcap_path, exc)
         return None, None
 
     return t_start, t_end
+
+
+def extract_client_ips_from_packets(
+    packets: Sequence[Any],
+    marker_ips: Sequence[str] = ("192.0.2.1", "2001:db8::1"),
+) -> set[str]:
+    """Dynamically extracts client IP addresses that emitted marker packets.
+
+    Supports both IPv4 and IPv6 without hardcoded assumptions about client addresses.
+
+    Args:
+        packets: Iterable of Scapy packet objects.
+        marker_ips: Recognized marker destination IP addresses.
+
+    Returns:
+        Set of client IP strings found in marker packet source headers.
+    """
+    try:
+        import scapy.all as scapy
+    except ImportError:
+        return set()
+
+    marker_set = set(marker_ips)
+    client_ips: set[str] = set()
+
+    for p in packets:
+        if not p.haslayer(scapy.UDP):
+            continue
+
+        payload = bytes(p[scapy.UDP].payload) if p[scapy.UDP].payload else b""
+        is_p1mark = payload.startswith(b"P1MARK")
+
+        if p.haslayer(scapy.IP):
+            if p[scapy.IP].dst in marker_set or is_p1mark:
+                client_ips.add(str(p[scapy.IP].src))
+        elif p.haslayer(scapy.IPv6):
+            if p[scapy.IPv6].dst in marker_set or is_p1mark:
+                client_ips.add(str(p[scapy.IPv6].src))
+
+    return client_ips
 
