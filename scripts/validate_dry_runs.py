@@ -93,8 +93,8 @@ def extract_session_features_from_pcap(
     dur_s = float(t_end - t_start)
     packets = scapy.rdpcap(str(pcap_path))
 
-    # Identify client IP (e.g. 192.168.1.7) and build whole-pcap IP-to-domain map (DNS + TLS ClientHello)
-    client_ips = {"192.168.1.7"}
+    # Identify client IP (e.g. [private LAN address]) and build whole-pcap IP-to-domain map (DNS + TLS ClientHello)
+    client_ips: set[str] = set()
     ip_to_domain = {}
 
     for p in packets:

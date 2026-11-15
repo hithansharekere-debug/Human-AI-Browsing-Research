@@ -102,16 +102,27 @@ The primary NC2 negative control evaluates whether client egress traffic feature
   $$\text{95\% CI: } [0.2438,\ 0.4860]$$
   The confidence interval strictly excludes 0.50 (upper bound $0.4860 < 0.50$).
 
-#### 3. Participant-Grouped Permutation Test
-- To determine whether the observed AUROC of $0.354$ represents statistically significant day separation under participant grouping, a 500-iteration participant-level permutation test was executed:
-  - Permuted null distribution mean: $0.2537 \pm 0.1208$.
-  - Two-tailed empirical permutation p-value:
-    $$p = 0.7860$$
-- **Interpretation & Caveats:**
-  - An observed AUROC of $0.354$ CANNOT be claimed as evidence of significant day separation. Because the participant-grouped permuted null distribution itself has a mean of $0.2537$ (arising from the structural constraint that participants do not overlap across days, leaving training sets heavily imbalanced), the observed value of $0.354$ is fully consistent with chance under participant-level exchangeability ($p = 0.7860$).
-  - Instead, the departure reflects between-participant idiosyncrasies among the 10 participants.
-  - **Confounding Disclosure:** Collection day and controller label are completely confounded in this dataset because all 40 AI sessions were collected in an un-interleaved block on 6 November, whereas human sessions were collected on 7 and 9 November.
-- **Supplementary Diagnostic:** The supplementary AI-vs-Human day diagnostic yields $\text{AUROC} = 0.7770$ and $\text{F1} = 0.6389$, which is similarly confounded by calendar date.
+#### 3. Participant-Grouped Permutation Test & Mechanics
+- **Exact Permutation Procedure:**
+  To test exchangeability under participant grouping, participant-level day assignments were permuted 500 times: 3 randomly selected participants were assigned to Nov 7 (all sessions = 0), 1 participant to the P04 split (Tasks 1–3 on Nov 7 = 0, Task 4 on Nov 9 = 1), and 6 participants to Nov 9 (all sessions = 1).
+- **Fold Construction & Scoring:**
+  Cross-validation uses 10 folds corresponding to the 10 participants. In each fold, the held-out participant's test set contains only one class (except Fold 3 with P04). Preprocessing and Logistic Regression are fitted on the remaining 9 participants, generating out-of-fold predicted probabilities $P(Y=1|X)$ that are pooled globally before AUROC calculation.
+- **Why the Permuted Null AUROC Mean is 0.2537:**
+  - Because test folds are homogeneous (single-class), the within-fold AUROC is undefined, and scoring depends entirely on global pooling across folds.
+  - When a Class 0 participant is held out, the training set suffers a deficit of Class 0, so the training prevalence $\bar{y}_{\text{train}}$ increases (e.g. from 49% to 58% Class 1). In Logistic Regression, the intercept $\beta_0 \approx \log(\frac{\bar{y}}{1 - \bar{y}})$ shifts upward, systematically inflating the predicted probabilities $P(Y=1)$ for the held-out Class 0 sessions.
+  - Conversely, when a Class 1 participant is held out, $\bar{y}_{\text{train}}$ drops (to 45% Class 1), shifting $\beta_0$ downward and depressing $P(Y=1)$ for the held-out Class 1 sessions.
+  - When these raw uncalibrated probabilities are pooled globally into a single ROC curve, Class 0 sessions systematically receive higher probabilities than Class 1 sessions, inverting the global ranking and depressing the pooled AUROC far below 0.50 (mean $0.2537 \pm 0.1208$).
+  - This effect is exacerbated because participants have unequal session counts (P01–P03 have 7–8 sessions while P05–P10 have 4 sessions).
+- **Statistical Diagnostic (Prior-Calibrated Scoring):**
+  - To test whether the 0.2537 null is an artifact of fold-intercept shift, a prior-calibrated diagnostic was evaluated by adjusting predicted logits by the training prior: $\text{logit}(p) - \log(\frac{\bar{y}_{\text{train}}}{1 - \bar{y}_{\text{train}}})$.
+  - Under prior calibration, the permutation null mean shifts rightward from $0.229$ to **$0.4570 \pm 0.0812$** (centering near chance).
+  - More importantly, the **observed NC2 AUROC under prior calibration shifts from $0.353846$ to $0.513846$** (virtually identical to 0.500, indicating zero genuine feature discrimination between 7 Nov and 9 Nov).
+- **Interpretation, Recommendation & Defect Documentation:**
+  - The observed raw AUROC of $0.354$ does NOT represent an inverted physical traffic signature across days. It is a mathematical defect of pooling uncalibrated out-of-fold probabilities across cluster-homogeneous folds.
+  - The 0.2537 null mean is NOT statistically interpretable as a standard exchangeable null; it is an artifact of the same pooling defect under cluster permutation.
+  - **Recommendation:** Do NOT silently alter or replace the preregistered primary NC2 result in `results/negative_controls.csv`. Retain the primary metric ($0.354$) as preregistered, but document the prior-calibrated diagnostic ($0.514$) in reports to explain that day separability is absent once intercept pooling distortion is removed.
+  - **Confounding Disclosure:** Collection day and controller label remain completely confounded because all 40 AI sessions were collected on 6 November, whereas human sessions were collected on 7 and 9 November.
+- **Supplementary Diagnostic:** The supplementary AI-vs-Human day diagnostic yields $\text{AUROC} = 0.7770$ and $\text{F1} = 0.6389$ (confounded by day).
 
 ---
 
@@ -177,7 +188,7 @@ A full inspection of commits beyond `origin/master` (including `d1ebafa`, `c0725
    - Chrome NetLogs (`netlog.json`, `*.netlog`): **Zero committed.**
    - Passwords, API tokens, `.env` files: **Zero committed.**
    - Participant PII: **Zero committed** (only pseudonyms `P01`–`P10`).
-   - IP Addresses: Zero external or client IP leakage. Only standard documentation and test IPs appear in code: RFC 5737 TEST-NET-1 marker (`192.0.2.1`), subnet broadcast (`192.168.1.255`), limited broadcast (`255.255.255.255`), and standard lab local IP (`192.168.1.7`) from Person A's handover.
+   - IP Addresses: Zero external or client IP leakage. Only standard documentation and test IPs appear in code: RFC 5737 TEST-NET-1 marker (`192.0.2.1`), subnet broadcast (`192.168.1.255`), limited broadcast (`255.255.255.255`), and standard lab local IP (`[private LAN address]`) from Person A's handover.
 3. **Data Schemas:** All 10 CSV tables, the JSON run manifest, and parquet schemas conform strictly to specifications.
 4. **Git Coverage:** `.gitignore` actively excludes `*.pcap`, `*.pcapng`, `*.parquet`, `data/`, `interim/`, `.env`, and private archives.
 
