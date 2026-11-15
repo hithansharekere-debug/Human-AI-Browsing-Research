@@ -101,8 +101,18 @@ def extract_session_features_from_pcap(
         dst_ip = p[scapy.IP].dst if p.haslayer(scapy.IP) else (p[scapy.IPv6].dst if p.haslayer(scapy.IPv6) else "")
         src_ip = p[scapy.IP].src if p.haslayer(scapy.IP) else (p[scapy.IPv6].src if p.haslayer(scapy.IPv6) else "")
 
+        # Identify client IP from IPv4 or IPv6 marker packets (UDP to marker IP or P1MARK payload)
+        if p.haslayer(scapy.UDP) and p[scapy.UDP].payload:
+            payload_bytes = bytes(p[scapy.UDP].payload)
+            if payload_bytes.startswith(b"P1MARK"):
+                if p.haslayer(scapy.IP):
+                    client_ips.add(p[scapy.IP].src)
+                elif p.haslayer(scapy.IPv6):
+                    client_ips.add(p[scapy.IPv6].src)
         if p.haslayer(scapy.IP) and p[scapy.IP].dst == "192.0.2.1":
             client_ips.add(p[scapy.IP].src)
+        elif p.haslayer(scapy.IPv6) and p[scapy.IPv6].dst == "2001:db8::1":
+            client_ips.add(p[scapy.IPv6].src)
 
         if p.haslayer(scapy.TCP) and p[scapy.TCP].payload:
             sni = extract_sni_from_payload(bytes(p[scapy.TCP].payload))
@@ -132,8 +142,10 @@ def extract_session_features_from_pcap(
         if not (t_start < t < t_end):
             continue
 
-        # Drop marker packets
+        # Drop marker packets (IPv4 or IPv6)
         if p.haslayer(scapy.IP) and p[scapy.IP].dst == "192.0.2.1":
+            continue
+        if p.haslayer(scapy.IPv6) and (p[scapy.IPv6].dst == "2001:db8::1" or (p.haslayer(scapy.UDP) and bytes(p[scapy.UDP].payload).startswith(b"P1MARK"))):
             continue
 
         # Check LAN port exclusion
