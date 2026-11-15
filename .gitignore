@@ -1,0 +1,126 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables & secrets
+.env*
+!*.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.token
+credentials.json
+secrets.*
+
+# IDE and OS files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# ==============================================================================
+# DATA SECURITY & REPRODUCIBILITY RESTRICTIONS
+# ==============================================================================
+# RAW DATASET IS STRICTLY EXTERNAL TO THIS REPO.
+# No raw packet captures, archives, or telemetry dumps inside repository.
+*.pcap
+*.pcapng
+*.cap
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.rar
+
+# Intermediate runtime data and caches
+data/
+raw_data/
+raw/
+temp/
+tmp/
+*.tmp
+*.log
+
+# Sensitive egress artifacts and large analysis dumps
+# Retain directory structure via .gitkeep but ignore large generated output
+results/*
+!results/.gitkeep
+output/*
+!output/.gitkeep
+figures/*
+!figures/.gitkeep
+
+# Exclude any temporary intermediate parquet or CSV dumps containing egress details
+*.parquet
+*.feather
+*.sqlite
+*.db
+
+# Participant-level source data, ledgers, and corrections
+sessions.csv
+label_corrections.csv
+schedule.csv
+SHA256SUMS.txt
+FREEZE.json
+
+# Chrome NetLogs and ground-truth artifacts
+*.netlog
+netlog.json
+*netlog*
+ground_truth/
+*ground_truth*
+

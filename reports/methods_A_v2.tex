@@ -1,0 +1,128 @@
+% ============================================================
+% Section III: Methodology (data collection), IEEEtran conference format
+% Author of this section: Person A (P1), testbed and data collection
+% Paste into the paper after "Related Work". Subsection III-H (features and
+% classification) is a placeholder for P2.
+% ============================================================
+\section{Methodology}
+\label{sec:method}
+
+The study asks whether a passive observer at the client network egress can tell human-operated browsing from AI-agent-operated browsing in encrypted traffic. To answer this, we recorded both kinds of session in one controlled testbed. Only the controller of the browser changed between conditions: the machine, the browser build, the start profile, the network and the tasks were the same.
+
+\subsection{Threat Model and Observation Point}
+\label{sec:method-threat}
+The observer is passive and sees all packets that leave the client host. It cannot decrypt TLS and does not modify traffic. This matches the position of an enterprise gateway, an ISP or a campus network monitor. The observer sees packet sizes, directions, timing, IP addresses, transport ports and unencrypted handshake fields (for example the TLS ClientHello). It does not see URLs, page content or keystrokes. We captured traffic on the client host's wireless interface, so the vantage point is the host's egress. We did not capture at a second, upstream device (Section~\ref{sec:method-limits}).
+
+\subsection{Testbed}
+\label{sec:method-testbed}
+All sessions ran on one laptop with Windows~11 (build 26200). It used a dedicated local user account created only for the study. The laptop connected to one Wi-Fi network through one adapter (MediaTek MT7921), and no VPN was active. The only browser in sessions was Google Chrome~157.0.8103.38. Its version was checked automatically before every session. Chrome always started with the same flags: \texttt{--remote-debugging-port=9222}, \texttt{--no-first-run}, \texttt{--no-default-browser-check}, \texttt{--disable-sync}, a fixed window size of $1366\times900$ and a fixed window position.
+
+\textit{Start state.} Each session started from a fresh copy of one ``golden'' Chrome profile that was never signed in to a Google account. The golden profile was warmed up for 10~minutes before the study, so Chrome's one-time component downloads (about 70~MB) happened before data collection and not inside sessions. The profile hash and the flag hash were the same for all study sessions.
+
+\textit{Capture.} Packets were captured with Wireshark \texttt{dumpcap}~4.6.3 (Npcap) on the Wi-Fi interface. Full packets were kept (snap length~0), with one \texttt{.pcapng} file per session. In parallel, Chrome wrote a NetLog for each session, which lists every request the browser made. The NetLog, the agent's step history and the recorded answers are ground truth for labelling and auditing only. They are never model features.
+
+\textit{Environment control.} Before every session an automatic preflight check confirmed four things: the expected Chrome version, no other Chrome process, no active VPN adapter, and that the golden profile was present. The tool versions (Python~3.13, \texttt{tshark}~4.6.3, Browser Use~0.13.14) were recorded in five environment snapshots across the collection period. No drift was found.
+
+\subsection{AI Agent}
+\label{sec:method-agent}
+The agent condition used Browser Use~0.13.14~\cite{browseruse}, an open-source browser-automation framework, with Google's \texttt{gemini-3.5-flash-lite} model for all agent sessions. The agent attached over the Chrome DevTools Protocol to the same Chrome instance that the collection tool had launched. It therefore used the same binary, flags and profile as the human sessions, and it never used a cloud-hosted browser. The prompt was the exact task text shown to human participants, plus one sentence saying that the browser was already open at the start page and that only the answer should be returned.
+
+We disabled the framework's anonymous telemetry, cloud synchronisation and package-version check. The only traffic specific to the agent condition is therefore the model API itself (\texttt{generativelanguage.googleapis.com}). This API traffic is an inherent part of how a remote-model agent works, and we report it as such. The operator did not touch the machine during agent sessions, and no interventions occurred. A larger model (\texttt{gemini-3.5-flash}) was tried first but hit free-tier quota limits (HTTP~429) in test runs. We replaced it before the study started.
+
+\subsection{Tasks and Task Website}
+\label{sec:method-tasks}
+Four tasks covered common browsing activities: lookup, navigation, comparison and form entry (Table~\ref{tab:tasks}). Three tasks used ``Meridian'', a static website we built for the study and served over HTTPS from Vercel. It held 60 books, 24 outdoor products and a registration form, all generated from a fixed seed. Its content did not change during the study. Meridian loads no third-party resources (no external fonts, scripts or analytics), so the traffic of these tasks goes to one site only. Task~T2 used the live English Wikipedia, which adds one real, third-party website. Every task has one verifiable correct answer.
+
+\begin{table}[t]
+\centering
+\caption{Browsing tasks}
+\label{tab:tasks}
+\footnotesize
+\begin{tabular}{@{}l p{3.6cm} l@{}}
+\toprule
+Task & Goal & Start page \\
+\midrule
+T1 Books & Find a book's price and rating, then the cheapest book in one category & Meridian /books \\
+T2 Wiki & Find the Apollo~11 command module pilot and his birthplace & Wikipedia main page \\
+T3 Shop & Compare two backpacks; report the cheaper one and its weight & Meridian /shop \\
+T4 Form & Submit a registration form with 8 given fictitious details & Meridian /form \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Participants}
+\label{sec:method-participants}
+Ten adult volunteers took part. They are coded P01--P10 in order of arrival, and no names appear in any data file. Consent forms are held separately by one team member. Every participant received the same spoken introduction and printed task cards, and got no help during tasks. Participants P01--P03 completed two rounds of the four tasks and P04--P10 completed one round. In total, there were 52 human sessions.
+
+\subsection{Session Protocol}
+\label{sec:method-protocol}
+One script ran every session through the same timeline:
+\begin{enumerate}
+\item Preflight check (Section~\ref{sec:method-testbed}).
+\item Capture starts. Chrome launches with a fresh profile copy at the task's start page.
+\item A 30~s settle period and 10~s of quiet with no input, which absorb browser start-up traffic.
+\item A START marker is sent: one UDP datagram to 192.0.2.1:9 (TEST-NET-1, never routed~\cite{rfc5737}) carrying the session identifier and a UTC timestamp.
+\item The task runs. For humans, the operator handed over the task card and pressed a key when the participant said ``done''. The agent ran by itself until it returned an answer, with a 10-minute limit that was never reached.
+\item An END marker is sent in the same format. Then 10~s of quiet follow, Chrome closes and the capture stops.
+\item The operator records the outcome, the answer given, any interventions and notes. The tool computes the file's SHA-256 checksum and packet count and appends one row to the label file.
+\end{enumerate}
+The analysis window of a session is the interval between the START and END markers. Start-up and shut-down traffic stays in the file but lies outside the window. Because the markers are in the capture itself, the window does not depend on clock agreement between machines.
+
+\subsection{Pre-Collection Validation}
+\label{sec:method-validation}
+We ran four checks before data collection.
+\textit{Capture self-test:} on each collection day, a self-test confirmed that both markers appear in the capture.
+\textit{Locality:} we checked that the agent fetched web pages from the test laptop and not from a remote browser. Wikipedia and Meridian traffic appeared in the agent captures, which confirms local execution.
+\textit{Browser identity:} the JA4 TLS client fingerprint~\cite{ja4} was compared between conditions. The cipher and extension parts (JA4 \texttt{a}+\texttt{b}) were identical for human and agent sessions. The remaining variation also appeared between two human sessions, so it reflects normal Chrome behaviour and not a different client.
+\textit{Background baseline:} eight idle recordings (Chrome open and unused for 5~min) measured background traffic at about 100--170~KB/min. Two idle recordings were dominated by a component download and a Windows Update, and we mark them as atypical.
+In addition, eleven dry runs exercised the full pipeline on all four tasks. They are not part of the dataset.
+
+\subsection{Feature Extraction and Classification}
+\label{sec:method-analysis}
+% PLACEHOLDER for P2 (analysis): flow construction, feature groups,
+% destination-based baseline, classifiers, and evaluation splits
+% (participant-, task- and session-held-out). Use the START-END window
+% and label rules in Section III-I.
+[To be written by the analysis lead.]
+
+\subsection{Dataset}
+\label{sec:method-dataset}
+The released dataset, \textit{pilot-v1}, contains 92 study sessions: 52 human and 40 agent, with 13 human and 10 agent sessions per task (Table~\ref{tab:dataset}). It also contains 8 idle baselines, 11 dry runs and 5 self-tests, which are labelled separately. The total is 116 recordings and about 1.3~GB of captures. All 92 sessions were recorded as successful, and none was excluded. For the agent sessions, the full answers in the agent logs were checked against the answer key. Where the operator's typed answer was shortened, the full answer was added to the correction file with a reason. The agent sessions were collected on 6~November 2026 and the human sessions on 7 and 9~November 2026. One participant (P04) completed three tasks on 7~November and the fourth on 9~November. Each recording has one row in a label file (\texttt{sessions.csv}). Each row holds the controller (human or agent), the participant, the task, the outcome, the marker times and the checksum. A data dictionary defines every column. An automatic validator checked the dataset with zero errors. The dataset was then frozen: a SHA-256 manifest covers every file, and corrections may only be added in a separate file with a stated reason.
+
+\begin{table}[t]
+\centering
+\caption{Study sessions by controller and task}
+\label{tab:dataset}
+\footnotesize
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Controller & T1 & T2 & T3 & T4 & Total & Correct \\
+\midrule
+Human (10 participants) & 13 & 13 & 13 & 13 & 52 & 52 \\
+Agent (Browser Use)     & 10 & 10 & 10 & 10 & 40 & 40 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textit{Labelling rules.} Only the controller label is the classification target. The participant and task identifiers define the groups for held-out evaluation. Traffic to Microsoft background services (Bing, MSN, \texttt{edge.microsoft.com}, Microsoft Online) is treated as host background, not as session behaviour.
+
+\textit{Handling.} Raw captures and logs are stored in an AES-encrypted archive. They are shared only with the two team members who analyse and audit them. The password is passed in person, never in writing.
+
+\subsection{Deviations and Limitations of the Collection}
+\label{sec:method-limits}
+We report every deviation from the plan.
+\begin{itemize}
+\item \textit{Collection day confounded with label.} The planned interleaved schedule was not followed for the agent: all agent sessions were collected in one afternoon, before any human session. Day-level network conditions may therefore differ with the label. This is the main threat to validity. Human sessions from 7 and 9~November allow an estimate of day-to-day drift within one class.
+\item \textit{Unequal rounds.} To save participants' time, only P01--P03 completed a second round. The decision was made and logged on 7~November, before any analysis.
+\item \textit{One invalid window.} In session S0062 the START--END window is 7~ms long, most likely because the operator pressed the key at the start. The traffic is in the file. The session is flagged, and results should be reported with and without it.
+\item \textit{Background applications.} In three human sessions (S0044, S0068, S0081) a PDF viewer in Microsoft Edge produced heavy background traffic. Lighter operating-system traffic appears in about 25 other sessions of both classes. These sessions are flagged, not excluded.
+\item \textit{Single vantage point.} We did not validate the capture upstream on a second device. We assume that host capture equals egress traffic.
+\item \textit{Unattributed connection.} Three early dry-run agent captures (D0001, D0005, D0006) contained a connection to a logging service (\texttt{datadoghq.com}). We could not identify its source, but it is most likely framework telemetry from before telemetry was disabled. It does not appear in any study session.
+\item \textit{Day-correlated background.} Two background sources were active only on the human collection days: a Chrome component download of about 5.3~MB (from \texttt{gvt1.com}), which falls inside 33 of 52 human windows and no agent window, and a desktop music application (Spotify), seen in 23 human sessions and no agent session. Both are labelled as host background and removed from website-flow features. They illustrate how collection day can mimic a class difference.
+\item \textit{Ceiling effect and scale.} All sessions succeeded, so the tasks may be easy, and task outcome does not explain any traffic difference. The dataset uses one machine, one network, one browser build, one agent framework and one model. This pilot shows feasibility. It does not show generalisation to other users, agents or networks.
+\end{itemize}
+
+% ---- add to the bibliography ----
+% \bibitem{browseruse} Browser Use, ``Browser Use: Make websites accessible for AI agents,'' v0.13.14, 2026. [Online]. Available: https://github.com/browser-use/browser-use
+% \bibitem{rfc5737} J. Arkko, M. Cotton, and L. Vegoda, ``IPv4 address blocks reserved for documentation,'' RFC 5737, IETF, Jan. 2010.
+% \bibitem{ja4} FoxIO, ``JA4+ network fingerprinting,'' 2023. [Online]. Available: https://github.com/FoxIO-LLC/ja4

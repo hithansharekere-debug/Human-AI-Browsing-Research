@@ -1,0 +1,288 @@
+# Flow Rules and Packet Filtering Configuration
+# Project: Human vs. AI-Agent Browsing at the Client Egress
+# Role: Person B (Analysis Lead)
+# Version: 1.1 (Updated with Person A Addendum 07 before Gate 2)
+
+version: "1.1"
+
+# Transport layer flow assembly settings (via nfstream or tshark fallback)
+flow_reassembly:
+  idle_timeout_seconds: 30.0     # Recommended in Handover §6 Step 0/4
+  active_timeout_seconds: 1800.0 # Recommended in Handover §6 Step 0/4
+  directionality: "bidirectional"
+  include_layer7: false          # Pure egress transport layer; do not inspect deep payload strings
+
+# Protocols in scope for human/agent web interaction
+target_protocols:
+  - name: "HTTPS"
+    transport: "TCP"
+    ports: [443, 8443]
+  - name: "HTTP"
+    transport: "TCP"
+    ports: [80, 8080]
+  - name: "QUIC_HTTP3"
+    transport: "UDP"
+    ports: [443]
+  - name: "DNS"
+    transport: "UDP"
+    ports: [53, 853]
+  - name: "DoT_DoH"
+    transport: "TCP"
+    ports: [853]
+
+# ==============================================================================
+# SECTION 1: LAN & LOCAL-ONLY TRAFFIC (EXCLUDE ENTIRELY BEFORE COMPUTING FLOWS)
+# ==============================================================================
+# These packets never traverse egress ISP routing. They must be dropped early
+# so they never enter feature matrices or contaminate flow calculations.
+lan_traffic_exclusions:
+  # Hostnames, suffixes, and queries
+  excluded_name_patterns:
+    - "*.local"
+    - "*._tcp.local"
+    - "*._udp.local"
+    - "android.local"              # Phone on same Wi-Fi in agent sessions S0005-S0019
+    - "wpad.domain.name"           # Windows Web Proxy Auto-Discovery lookup
+    - "_ldap._tcp.dc._msdcs.domain.name" # Windows Active Directory / domain query
+    - "cal"                        # Single-label Windows local name query
+  
+  # IP broadcast / multicast / loopback ranges
+  excluded_ip_ranges:
+    - "192.168.1.255"              # Subnet broadcast
+    - "255.255.255.255"            # Global broadcast
+    - "224.0.0.0/4"                # IPv4 Multicast
+    - "ff00::/8"                   # IPv6 Multicast
+    - "127.0.0.0/8"                # IPv4 Loopback
+    - "::1"                        # IPv6 Loopback
+    - "192.0.2.1"                  # TEST-NET-1 (Experiment START/END markers, dropped after cut)
+
+  # Local discovery protocol ports (mDNS, SSDP, LLMNR, NetBIOS/SMB)
+  # NOTE: DHCP (67/68) and NTP (123) are NOT excluded here because neither is justified
+  # in 07_ADDENDUM_more_background_domains.md or 00_READ_ME_FIRST_PersonB_Handover.pdf.
+  excluded_ports:
+    - protocol: "UDP"
+      port: 5353                   # mDNS
+      name: "mDNS"
+    - protocol: "UDP"
+      port: 1900                   # SSDP
+      name: "SSDP"
+    - protocol: "UDP"
+      port: 5355                   # LLMNR
+      name: "LLMNR"
+    - protocol: "UDP"
+      ports: [137, 138]            # NetBIOS Name / Datagram
+      name: "NetBIOS_UDP"
+    - protocol: "TCP"
+      ports: [139, 445]            # NetBIOS Session / SMB
+      name: "NetBIOS_SMB"
+
+# ==============================================================================
+# SECTION 2: FLOW CLASSIFICATION RULES & PRECEDENCE ORDER
+# ==============================================================================
+# Flow classification precedence (Handover §6 Step 5):
+# 1. vendor (A)
+# 2. search (D)
+# 3. os_background
+# 4. website
+# default: unknown
+flow_classification:
+  match_order:
+    - "vendor"
+    - "search"
+    - "os_background"
+    - "website"
+  default_class: "unknown"
+
+  classes:
+    # --------------------------------------------------------------------------
+    # 1. VENDOR (Family A - Shortcut Family)
+    # --------------------------------------------------------------------------
+    vendor:
+      description: "AI agent vendor endpoints and telemetry frameworks"
+      domains:
+        - "generativelanguage.googleapis.com"      # Google Gemini API
+        - "http-intake.logs.us5.datadoghq.com"     # Agent framework telemetry
+        - "*.datadoghq.com"
+
+    # --------------------------------------------------------------------------
+    # 2. SEARCH (Family D - Destination Shortcut / Omnibox Suggestions)
+    # --------------------------------------------------------------------------
+    search:
+      description: "Browser omnibox search suggestion queries (human typing behavior)"
+      domains:
+        - "www.google.com"
+        - "*.google.com"
+
+    # --------------------------------------------------------------------------
+    # 3. OS BACKGROUND (System & Desktop Telemetry, Personal Apps, Updates)
+    # --------------------------------------------------------------------------
+    os_background:
+      description: "Non-study background traffic: personal apps, OS telemetry, Edge/MSN feed, and updates"
+      domains:
+        # F1 Finding & Chrome Update Services
+        - "update.googleapis.com"
+        - "clientservices.googleapis.com"
+        - "optimizationguide-pa.googleapis.com"
+        - "safebrowsing.googleapis.com"
+        - "content-autofill.googleapis.com"
+        - "edgedl.me.gvt1.com"
+        - "*.gvt1.com"
+        - "gvt1.com"
+        - "play.google.com"
+        - "accounts.google.com"
+
+        # Personal applications (Addendum 07 §1)
+        - "spotify.com"              # 23 human sessions on 7 & 9 Nov (Confound F1/F5)
+        - "*.spotify.com"
+        - "dropbox.com"              # S0041, S0043, S0068, I0005
+        - "*.dropbox.com"
+        - "zoom.us"                  # S0043
+        - "*.zoom.us"
+        - "skype.com"                # S0044, S0068
+        - "*.skype.com"
+        - "mcafee.com"               # S0039, S0057, S0090
+        - "*.mcafee.com"
+
+        # Dry-run-only domains (Addendum 07 §1)
+        - "grammarly.com"
+        - "*.grammarly.com"
+        - "grammarly.io"
+        - "*.grammarly.io"
+        - "honey.io"
+        - "*.honey.io"
+        - "brave.com"
+        - "*.brave.com"
+        - "youtube.com"
+        - "*.youtube.com"
+        - "google.ae"
+        - "*.google.ae"
+        - "claude.ai"
+        - "*.claude.ai"
+        - "anthropic.com"
+        - "*.anthropic.com"
+
+        # Edge / MSN news feed (Addendum 07 §2)
+        - "headtopics.com"
+        - "*.headtopics.com"
+        - "zigwheels.com"
+        - "*.zigwheels.com"
+        - "carhp.in"
+        - "*.carhp.in"
+        - "autocarpro.in"
+        - "*.autocarpro.in"
+        - "bozokmedia.com"
+        - "*.bozokmedia.com"
+        - "theindustryoutlook.com"
+        - "*.theindustryoutlook.com"
+
+        # Associated advertising/tracking hosts (Addendum 07 §2 - MSN/Edge feed)
+        - "scorecardresearch.com"
+        - "*.scorecardresearch.com"
+        - "doubleclick.net"
+        - "*.doubleclick.net"
+        - "servedbyadbutler.com"
+        - "*.servedbyadbutler.com"
+        - "googletagmanager.com"
+        - "*.googletagmanager.com"
+        - "google-analytics.com"
+        - "*.google-analytics.com"
+
+        # Microsoft & Windows Infrastructure (Handover App B & Addendum 07 §4)
+        - "windowsupdate.com"
+        - "*.windowsupdate.com"
+        - "msftconnecttest.com"
+        - "*.msftconnecttest.com"
+        - "msftncsi.com"
+        - "*.msftncsi.com"
+        - "sfx.ms"
+        - "*.sfx.ms"
+        - "azureedge.net"
+        - "*.azureedge.net"
+        - "edge.microsoft.com"
+        - "*.microsoft.com"
+        - "*.events.data.microsoft.com"
+        - "settings-win.data.microsoft.com"
+        - "ecs.office.com"
+        - "assets.msn.com"
+        - "*.msn.com"
+        - "*.bing.com"
+        - "*.microsoftonline.com"
+        - "login.live.com"
+        - "*.delivery.mp.microsoft.com"
+        - "*.update.microsoft.com"
+        - "wdcp.microsoft.com"
+
+        # Certificate authorities & PKI (Addendum 07 §4)
+        - "lencr.org"
+        - "*.lencr.org"
+        - "digicert.com"
+        - "*.digicert.com"
+        - "sectigo.com"
+        - "*.sectigo.com"
+        - "usertrust.com"
+        - "*.usertrust.com"
+        - "pki.goog"
+        - "*.pki.goog"
+
+        # Hardware, OEM & Developer services (Addendum 07 §4)
+        - "nvidia.com"
+        - "*.nvidia.com"
+        - "nvidiagrid.net"
+        - "*.nvidiagrid.net"
+        - "geforce.com"
+        - "*.geforce.com"
+        - "hp.com"
+        - "*.hp.com"
+        - "hpsmart.com"
+        - "*.hpsmart.com"
+        - "hpgamestream.com"
+        - "*.hpgamestream.com"
+        - "falais.com"
+        - "*.falais.com"
+        - "pypi.org"
+        - "*.pypi.org"
+
+      # Specific server IP addresses mapped to background services
+      ip_addresses:
+        - "2600:1900:4110:86f::"     # Google edgedl.me.gvt1.com (F1)
+        - "14.102.231.202"           # Windows Update Delivery Optimization (I0004)
+        - "14.102.231.203"           # Windows Update Delivery Optimization (I0007)
+
+    # --------------------------------------------------------------------------
+    # 4. WEBSITE (Primary Analysis Target for B6 Features)
+    # --------------------------------------------------------------------------
+    website:
+      description: "Direct task web application endpoints (T1-T4)"
+      domains:
+        - "meridian-tasks.vercel.app"              # T1, T3, T4
+        - "en.wikipedia.org"                       # T2
+        - "wikipedia.org"
+        - "*.wikipedia.org"
+        - "wikimedia.org"                          # T2 assets
+        - "*.wikimedia.org"
+        - "duckduckgo.com"                         # S0010 agent T2 navigation
+        - "*.duckduckgo.com"
+
+# ==============================================================================
+# SECTION 3: UNRESOLVED DOMAINS (AUDIT PENDING POST-DECRYPTION)
+# ==============================================================================
+# In accordance with Addendum 07 §4, these domains MUST NOT be automatically
+# assigned to website or os_background. They default to 'unknown' until raw
+# NetLogs can be inspected at Gate 4.
+unresolved_domains:
+  - name: "fastly-edge.com"
+    reason: "Wikipedia uses internal CDN; Vercel does not use Fastly. Unconfirmed if loaded by task or background."
+    assigned_class: "unknown"
+  - name: "cloudflare-ech.com"
+    reason: "Cloudflare Encrypted Client Hello mechanism. Seen in D0010/D0012. Needs NetLog correlation."
+    assigned_class: "unknown"
+
+# ==============================================================================
+# SECTION 4: SANITIZATION & LOGGING SAFEGUARDS
+# ==============================================================================
+sanitization:
+  mask_source_ip: true
+  mask_destination_ip: true
+  endpoint_tokenization: "HMAC_SHA256"
+  drop_payload_bytes: true
+  max_retained_packet_header_bytes: 54

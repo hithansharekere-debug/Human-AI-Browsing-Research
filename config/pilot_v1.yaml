@@ -1,0 +1,96 @@
+# Pilot Configuration v1
+# Project: Human vs. AI-Agent Browsing at the Client Egress
+# Role: Person B (Analysis Lead)
+# Updated with Addendum 07 before Gate 2
+
+project:
+  name: "Human vs. AI-Agent Browsing at the Client Egress"
+  version: "1.0.0-pilot"
+  random_seed: 20261106  # Aligned with Handover §6 Step 8
+  session_count_expected: 92
+  human_sessions_expected: 52
+  agent_sessions_expected: 40
+
+# Dataset Paths (Raw data stays strictly external!)
+data_source:
+  external_manifest_path: "C:/pilot-v1-data/data/SHA256SUMS.txt"
+  external_dataset_dir: "C:/pilot-v1-data/data"
+  allow_missing_sessions: false
+  min_session_duration_seconds: 0.1  # S0062 handled via exclusion log
+  min_packets_per_session: 10
+
+# Windowing & Temporal Slicing
+windowing:
+  default_window_seconds: 30.0
+  step_seconds: 30.0
+  sensitivity_windows: [5.0, 15.0, 30.0, 60.0]
+
+# Preprocessing & Flow Reassembly
+flow_extraction:
+  idle_timeout_seconds: 30.0
+  active_timeout_seconds: 1800.0
+  directionality: "bidirectional"
+  strip_payload: true
+  rules_config: "features/flow_rules.yaml"
+
+# Feature Extraction Parameters (Handover §6 Step 2/6)
+features:
+  spec_path: "features/SPEC.md"
+  burst_threshold_ms: 100.0       # theta_b
+  idle_threshold_ms: 500.0        # theta_i
+  sensitivity_burst_thresholds_ms: [50.0, 100.0, 250.0]
+  idle_gap_entropy_bins: 12
+  idle_gap_entropy_min_s: 0.5
+  idle_gap_entropy_max_s: 120.0
+  epsilon: 1e-6
+  export_format: "parquet"
+
+# Statistical Testing Parameters
+statistics:
+  alpha: 0.05
+  fdr_method: "fdr_bh"
+  cluster_bootstrap_iterations: 2000
+  bootstrap_ci_level: 0.95
+  normality_alpha: 0.05
+  cluster_columns: ["participant_id", "rep"]
+
+# Machine Learning & Baselines (B0 - B8)
+modeling:
+  splits:
+    - "random_5fold"
+    - "loto"   # Leave-One-Task-Out (4 folds)
+    - "lopo"   # Leave-One-Participant-Out (10 folds)
+  permutation_iterations: 200
+  primary_classifier:
+    name: "logistic_regression"
+    penalty: "l2"
+    C: 1.0
+    solver: "lbfgs"
+    max_iter: 1000
+    features_subset: "B6_core6"
+    features:
+      - "T_idle_gap_median"
+      - "T_burst_rate"
+      - "V_up_down_ratio"
+      - "V_upload_burst_share"
+      - "C_new_flows_per_min"
+      - "C_max_concurrent"
+  check_classifier:
+    name: "random_forest"
+    n_estimators: 500
+    random_state: 20261106
+    features_subset: "B6_core6"
+    features:
+      - "T_idle_gap_median"
+      - "T_burst_rate"
+      - "V_up_down_ratio"
+      - "V_upload_burst_share"
+      - "C_new_flows_per_min"
+      - "C_max_concurrent"
+
+# Reproducibility & Output Paths (Relative to Repository Root)
+paths:
+  results_dir: "results"
+  figures_dir: "figures"
+  output_dir: "output"
+  reports_dir: "reports"
