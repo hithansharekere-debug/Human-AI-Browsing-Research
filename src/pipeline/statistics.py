@@ -77,6 +77,110 @@ def bootstrap_ci(
     return lower, upper
 
 
+def cluster_bootstrap_ci_cliffs_delta(
+    df: pd.DataFrame,
+    feature_col: str,
+    n_resamples: int = 2000,
+    ci_level: float = 0.95,
+    seed: int = 20261106,
+) -> Tuple[float, float, float]:
+    """Calculates Cliff's delta and cluster-bootstrap 95% CI according to Handover Step 7.
+
+    Resamples the 10 human participants with replacement and the 10 agent reps with replacement,
+    retaining all sessions of a chosen cluster.
+    """
+    human_df = df[df["controller"] == "human"]
+    agent_df = df[df["controller"] != "human"]
+
+    h_vals = human_df[feature_col].dropna().to_numpy()
+    a_vals = agent_df[feature_col].dropna().to_numpy()
+
+    delta = compute_cliffs_delta(h_vals, a_vals)
+    if len(h_vals) == 0 or len(a_vals) == 0:
+        return delta, delta, delta
+
+    human_clusters = human_df["participant_id"].dropna().unique()
+    agent_clusters = agent_df["rep"].dropna().unique()
+
+    rng = np.random.default_rng(seed)
+    resamples = np.zeros(n_resamples)
+
+    human_grouped = {p: human_df[human_df["participant_id"] == p][feature_col].dropna().to_numpy() for p in human_clusters}
+    agent_grouped = {r: agent_df[agent_df["rep"] == r][feature_col].dropna().to_numpy() for r in agent_clusters}
+
+    for i in range(n_resamples):
+        sampled_h_clusters = rng.choice(human_clusters, size=len(human_clusters), replace=True)
+        sampled_a_clusters = rng.choice(agent_clusters, size=len(agent_clusters), replace=True)
+
+        boot_h = np.concatenate([human_grouped[p] for p in sampled_h_clusters]) if len(sampled_h_clusters) > 0 else np.array([])
+        boot_a = np.concatenate([agent_grouped[r] for r in sampled_a_clusters]) if len(sampled_a_clusters) > 0 else np.array([])
+
+        if len(boot_h) == 0 or len(boot_a) == 0:
+            resamples[i] = 0.0
+        else:
+            resamples[i] = compute_cliffs_delta(boot_h, boot_a)
+
+    alpha_tail = (1.0 - ci_level) / 2.0
+    lower = float(np.percentile(resamples, 100 * alpha_tail))
+    upper = float(np.percentile(resamples, 100 * (1.0 - alpha_tail)))
+    return float(delta), lower, upper
+
+
+def cluster_bootstrap_ci_auroc(
+    df: pd.DataFrame,
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    n_resamples: int = 2000,
+    ci_level: float = 0.95,
+    seed: int = 20261106,
+) -> Tuple[float, float, float]:
+    """Calculates AUROC and cluster-bootstrap 95% CI on pooled cross-validation predictions.
+
+    Clusters: Human participant_id, Agent rep.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    y_true_arr = np.asarray(y_true)
+    y_prob_arr = np.asarray(y_prob)
+
+    if len(np.unique(y_true_arr)) < 2:
+        return 0.50, 0.50, 0.50
+
+    auroc = float(roc_auc_score(y_true_arr, y_prob_arr))
+
+    clusters = []
+    for _, row in df.iterrows():
+        if str(row.get("controller", "")).lower() == "human":
+            clusters.append(f"human_{row.get('participant_id', 'NA')}")
+        else:
+            clusters.append(f"agent_{row.get('rep', 0)}")
+    clusters_arr = np.array(clusters)
+    unique_clusters = np.unique(clusters_arr)
+    n_clusters = len(unique_clusters)
+
+    cluster_indices = {c: np.where(clusters_arr == c)[0] for c in unique_clusters}
+
+    rng = np.random.default_rng(seed)
+    resamples = np.zeros(n_resamples)
+
+    for i in range(n_resamples):
+        sampled_c = rng.choice(unique_clusters, size=n_clusters, replace=True)
+        boot_idx = np.concatenate([cluster_indices[c] for c in sampled_c])
+
+        boot_y = y_true_arr[boot_idx]
+        boot_prob = y_prob_arr[boot_idx]
+
+        if len(np.unique(boot_y)) < 2:
+            resamples[i] = 0.50
+        else:
+            resamples[i] = float(roc_auc_score(boot_y, boot_prob))
+
+    alpha_tail = (1.0 - ci_level) / 2.0
+    lower = float(np.percentile(resamples, 100 * alpha_tail))
+    upper = float(np.percentile(resamples, 100 * (1.0 - alpha_tail)))
+    return auroc, lower, upper
+
+
 def adjust_p_values_fdr_bh(p_values: List[float]) -> List[float]:
     """Applies Benjamini-Hochberg False Discovery Rate (FDR) adjustment."""
     p_arr = np.asarray(p_values)

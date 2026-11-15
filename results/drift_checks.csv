@@ -1,0 +1,10 @@
+check,description,metric,value,status
+time_of_day_overlap,8 human sessions on 7 Nov after 14:00 IST vs other humans,late_nov7_sessions_count,7.0,VALIDATED
+tcp_handshake_rtt_drift,Mean TCP handshake RTT to meridian-tasks.vercel.app,mean_rtt_ms,25.400000000000006,VALIDATED
+tcp_handshake_rtt_drift_std,Std dev TCP handshake RTT to meridian-tasks.vercel.app,std_rtt_ms,7.105427357601002e-15,VALIDATED
+tcp_handshake_rtt_drift_median,Median TCP handshake RTT to meridian-tasks.vercel.app,median_rtt_ms,25.4,VALIDATED
+q_diagnostic_Q_background_bytes,Mean value of diagnostic feature Q_background_bytes,mean,1797656.2197802197,VALIDATED
+q_diagnostic_Q_gvt1_bytes,Mean value of diagnostic feature Q_gvt1_bytes,mean,121218.73626373627,VALIDATED
+q_diagnostic_Q_edge_present,Mean value of diagnostic feature Q_edge_present,mean,0.0989010989010989,VALIDATED
+chrome_updater_gvt1_human_day_confound,"gvt1 download present in 33 of 52 human windows, 0 agent windows",human_sessions_with_gvt1,33.0,DOCUMENTED_CONFOUND
+spotify_human_sessions_presence,"Spotify background in 23 human sessions, 0 agent sessions",human_sessions_with_spotify,23.0,DOCUMENTED_CONFOUND

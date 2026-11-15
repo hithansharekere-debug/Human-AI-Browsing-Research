@@ -90,6 +90,7 @@ coverage.xml
 data/
 raw_data/
 raw/
+processed/
 temp/
 tmp/
 *.tmp
@@ -99,10 +100,14 @@ tmp/
 # Retain directory structure via .gitkeep but ignore large generated output
 results/*
 !results/.gitkeep
+!results/*.csv
+!results/*.json
+!results/*.md
 output/*
 !output/.gitkeep
 figures/*
 !figures/.gitkeep
+!figures/*.png
 
 # Exclude any temporary intermediate parquet or CSV dumps containing egress details
 *.parquet

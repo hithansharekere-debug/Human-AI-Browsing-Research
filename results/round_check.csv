@@ -1,0 +1,9 @@
+check,comparison,metric,n_round1_sessions,n_round2_sessions,value,status,n_sessions_retained
+unequal_rounds_p01_p03,round_1_vs_round_2,round_session_counts,12,11,23.0,VALIDATED,
+cliff_delta_r1_vs_r2_T_idle_gap_median,round_1_vs_round_2,cliffs_delta_T_idle_gap_median,12,11,-0.22727272727272727,VALIDATED,
+cliff_delta_r1_vs_r2_T_burst_rate,round_1_vs_round_2,cliffs_delta_T_burst_rate,12,11,-0.015151515151515152,VALIDATED,
+cliff_delta_r1_vs_r2_V_up_down_ratio,round_1_vs_round_2,cliffs_delta_V_up_down_ratio,12,11,-0.2727272727272727,VALIDATED,
+cliff_delta_r1_vs_r2_V_upload_burst_share,round_1_vs_round_2,cliffs_delta_V_upload_burst_share,12,11,0.05303030303030303,VALIDATED,
+cliff_delta_r1_vs_r2_C_new_flows_per_min,round_1_vs_round_2,cliffs_delta_C_new_flows_per_min,12,11,-0.15151515151515152,VALIDATED,
+cliff_delta_r1_vs_r2_C_max_concurrent,round_1_vs_round_2,cliffs_delta_C_max_concurrent,12,11,0.13636363636363635,VALIDATED,
+b6_drop_round2,b6_evaluated_without_round2_sessions,auroc_lopo,12,0,0.8075,VALIDATED,80.0

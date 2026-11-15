@@ -122,6 +122,60 @@ We report every deviation from the plan.
 \item \textit{Ceiling effect and scale.} All sessions succeeded, so the tasks may be easy, and task outcome does not explain any traffic difference. The dataset uses one machine, one network, one browser build, one agent framework and one model. This pilot shows feasibility. It does not show generalisation to other users, agents or networks.
 \end{itemize}
 
+\subsection{Feature Extraction and Classification}
+\label{sec:feature-classification}
+The analysis pipeline extracts micro-behavioral transport features from client egress captures strictly within pre-registered active session windows, evaluates behavioral separability across orthogonal baselines, and subjects headline findings to rigorous negative controls and sensitivity checks.
+
+\textit{Active Windowing and Flow Classification.}
+Raw packet captures span complete session recordings, including setup and post-task idle periods. Feature extraction is strictly restricted to the in-window interval $[t_{\text{start}}, t_{\text{end}}]$ defined by explicit operator keystroke markers logged in \texttt{sessions.csv}. In primary analyses, session S0062 is excluded ($N=91$) due to a corrupted 7~ms operator marker; in sensitivity analyses, its window is reconstructed from Chrome NetLog navigation boundaries (29.3~s, $N=92$). 
+
+Transport flows (5-tuples) active within the session window are deterministically partitioned into four mutually exclusive functional categories using IP-to-domain mapping derived from in-pcap DNS exchanges and TLS ClientHello Server Name Indication (SNI):
+\begin{enumerate}
+    \item \textit{Website flows ($W$):} Transport sessions terminating at target web applications, content delivery networks, and static task assets (e.g., \texttt{meridian-tasks.vercel.app}, Wikipedia, OpenLibrary, and image CDNs).
+    \item \textit{Vendor API flows ($A$):} Transport sessions terminating at the agent operator's LLM inference infrastructure (Google Cloud/Gemini endpoints via \texttt{1e100.net} and Cloudflare AI gateway).
+    \item \textit{Search suggestion flows ($D$):} Real-time interactive keystroke suggestion endpoints (e.g., \texttt{suggestqueries.google.com}).
+    \item \textit{Diagnostic background flows ($Q$):} Operating system and third-party host traffic (Microsoft Edge PDF viewer, Spotify, Windows Update, and Chrome component downloads from \texttt{*.gvt1.com}).
+\end{enumerate}
+
+\textit{Primary Feature Representation (B6\_core6).}
+To ensure robustness against sample size constraints and prevent overfitting, the headline classification model (\textit{B6\_core6}) is restricted to exactly six standardized features computed exclusively from website flows ($W$):
+\begin{itemize}
+    \item \textit{Timing ($T$):} $T_{\text{idle\_gap\_median}}$ (median duration in seconds of inter-burst silent intervals where inter-packet arrival exceeds $\theta_b = 100$~ms) and $T_{\text{burst\_rate}}$ (number of packet bursts per second of active session time).
+    \item \textit{Volume ($V$):} $V_{\text{up\_down\_ratio}}$ (ratio of total website upload bytes to download bytes) and $V_{\text{upload\_burst\_share}}$ (proportion of packet bursts in which upload bytes exceed download bytes).
+    \item \textit{Concurrency ($C$):} $C_{\text{new\_flows\_per\_min}}$ (rate of newly initiated website transport flows per minute) and $C_{\text{max\_concurrent}}$ (maximum number of simultaneously open website transport flows).
+\end{itemize}
+All features are z-score standardized using statistics computed strictly on training folds and projected onto held-out test folds.
+
+\textit{Baseline Hierarchy (B0--B8).}
+To isolate genuine client-side micro-behavior from artifactual confounders and shortcuts, we benchmark nine pre-registered baselines:
+\begin{itemize}
+    \item \textbf{B0 (Majority Class):} Trivial chance floor ($\text{AUROC} = 0.50$).
+    \item \textbf{B1 (Vendor Shortcut):} L2 Logistic Regression on vendor API features ($A_{\text{vendor\_present}}, A_{\text{vendor\_bytes}}$). Demonstrates trivial egress separability when provider infrastructure is exposed.
+    \item \textbf{B2 (JA4 Handshake):} Website-flow TLS client fingerprinting using the JA4 method. Serves as a vital negative control: since human and agent sessions employ the same underlying Chrome build, B2 must yield $\text{AUROC} \le 0.60$.
+    \item \textbf{B3 (Destination/Search):} Logistic Regression on search suggestion features ($D$).
+    \item \textbf{B4 (Length Only):} Logistic Regression on window duration alone ($L$), assessing macro-level task completion time differences.
+    \item \textbf{B5 (All-Flow Behavioral):} $T+V+C$ features computed over all flows without website filtering; serves as a contamination diagnostic.
+    \item \textbf{B6 (Website Behavioral --- Headline):} L2 Logistic Regression ($C=1.0$, no tuning) on the six core website features ($B6\_core6$). A secondary non-linear verification is conducted using an un-tuned 500-tree Random Forest (\texttt{seed=20261106}).
+    \item \textbf{B7 (Length-Normalized):} B6 features normalized by window duration.
+    \item \textbf{B8 (Vendor-to-Website Lag):} Diagnostic measuring latency between first vendor API call and first website TLS handshake.
+\end{itemize}
+
+\textit{Held-Out Evaluation and Statistical Inference.}
+Generalization is evaluated under two strict, leak-free cross-validation protocols:
+\begin{enumerate}
+    \item \textit{Leave-One-Task-Out (LOTO):} 4-fold cross-validation where all sessions of a given task ($T_1$--$T_4$) are held out.
+    \item \textit{Leave-One-Participant-Out (LOPO):} 10-fold cross-validation where all sessions of an individual human participant are held out entirely.
+\end{enumerate}
+Out-of-fold probability predictions across folds are pooled before computing the overall Area Under the ROC Curve (AUROC) and macro $F_1$-score. Non-parametric 95\% confidence intervals for AUROC and Cliff's delta ($\delta$) effect sizes are computed via 2,000 cluster-bootstrap resamples, clustering human sessions by participant identifier and agent sessions by independent run.
+
+\textit{Falsification Controls and Sensitivity Analyses.}
+The methodology embeds two pre-registered negative controls:
+\begin{itemize}
+    \item \textbf{NC1 (Label Permutation):} 200 within-task label permutations under LOTO and LOPO. The resulting null distribution must center at chance ($0.50 \pm 0.05$) to rule out pipeline structural bias.
+    \item \textbf{NC2 (Collection Day Control):} Classifying 7~November vs.\ 9~November human sessions under participant-grouped folds. Departures from chance quantify day-to-day cohort variance and environmental drift. A supplementary diagnostic evaluates AI sessions (collected 6~November) against human sessions to expose day-level confounding.
+\end{itemize}
+Seven sensitivity perturbations evaluate pipeline stability: (1) ablation of Edge/MSN background sessions, (2) S0062 window reconstruction ($N=92$), (3) reclassifying search suggestion flows as website flows, (4) packet burst boundary threshold at 50~ms, (5) burst threshold at 250~ms, (6) dropping round-2 repeat sessions ($N=80$), and (7) Random Forest classifier check.
+
 % ---- add to the bibliography ----
 % \bibitem{browseruse} Browser Use, ``Browser Use: Make websites accessible for AI agents,'' v0.13.14, 2026. [Online]. Available: https://github.com/browser-use/browser-use
 % \bibitem{rfc5737} J. Arkko, M. Cotton, and L. Vegoda, ``IPv4 address blocks reserved for documentation,'' RFC 5737, IETF, Jan. 2010.

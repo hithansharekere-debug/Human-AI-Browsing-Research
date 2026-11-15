@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.preprocessing import StandardScaler
 
 from src.pipeline.model_evaluation import generate_loto_folds, generate_lopo_folds
@@ -278,15 +278,18 @@ class NegativeControlValidator:
 
         if len(np.unique(y_true_arr)) < 2:
             auroc = 0.50
+            f1 = 0.0
         else:
             auroc = float(roc_auc_score(y_true_arr, y_prob_arr))
+            y_pred_arr = (y_prob_arr >= 0.5).astype(int)
+            f1 = float(f1_score(y_true_arr, y_pred_arr, zero_division=0))
 
         passed = bool(0.40 <= auroc <= 0.60)
-        logger.info("Primary NC2 complete: AUROC = %.3f, passed = %s", auroc, passed)
+        logger.info("Primary NC2 complete: AUROC = %.3f, F1 = %.3f, passed = %s", auroc, f1, passed)
 
         return NC2DayControlResult(
             auroc=auroc,
-            f1=0.0,
+            f1=f1,
             n_sessions=len(df_human_sessions),
             n_nov7_sessions=n_nov7,
             n_nov9_sessions=n_nov9,
@@ -302,12 +305,73 @@ class NegativeControlValidator:
         """Executes supplementary AI-vs-Human day diagnostic.
 
         Separately named and treated as supplementary per methodology requirements.
+        Evaluates cross-day classification (AI Nov 6 vs Human Nov 7/9) using LOPO grouped folds.
         """
         logger.info("Executing Supplementary AI-vs-Human Day Diagnostic...")
-        # Placeholder returning structured diagnostic record
+        if len(df_sessions) == 0 or len(X_features) == 0:
+            return NC2SupplementaryAIDayResult(
+                comparison_name="AI_Nov6_vs_Human_Nov7_and_Nov9_diagnostic",
+                auroc=0.50,
+                f1=0.0,
+                is_supplementary=True,
+            )
+
+        # y_target: 1 for AI (recorded 6 Nov), 0 for Human (recorded 7/9 Nov)
+        if "controller" in df_sessions.columns:
+            y_target = np.where(df_sessions["controller"].astype(str).str.lower() == "human", 0, 1)
+        else:
+            # Fallback if only day timestamps exist (e.g. mock test DataFrame)
+            t_starts = df_sessions.get("t_start_utc", pd.Series([""] * len(df_sessions))).fillna("").astype(str)
+            is_nov9 = t_starts.str.contains("2026-11-09")
+            y_target = is_nov9.astype(int).values
+
+        # Use LOPO folds if metadata columns exist, else k-fold
+        if "participant_id" in df_sessions.columns and "rep" in df_sessions.columns:
+            folds = generate_lopo_folds(df_sessions, n_folds=10)
+        else:
+            indices = np.arange(len(df_sessions))
+            folds = [(np.delete(indices, [i]), np.array([i])) for i in range(len(df_sessions))]
+
+        y_true_all: List[int] = []
+        y_prob_all: List[float] = []
+
+        for train_idx, test_idx in folds:
+            if len(test_idx) == 0:
+                continue
+
+            X_train, X_test = X_features[train_idx], X_features[test_idx]
+            y_train, y_test = y_target[train_idx], y_target[test_idx]
+
+            if len(np.unique(y_train)) < 2:
+                probs = np.full(len(test_idx), 0.5)
+            else:
+                scaler = StandardScaler()
+                X_tr_s = scaler.fit_transform(X_train)
+                X_te_s = scaler.transform(X_test)
+
+                clf = LogisticRegression(C=1.0, solver="lbfgs", max_iter=1000, random_state=self.seed)
+                clf.fit(X_tr_s, y_train)
+                probs = clf.predict_proba(X_te_s)[:, 1]
+
+            y_true_all.extend(y_test)
+            y_prob_all.extend(probs)
+
+        y_true_arr = np.array(y_true_all)
+        y_prob_arr = np.array(y_prob_all)
+
+        if len(np.unique(y_true_arr)) < 2:
+            auroc = 0.50
+            f1 = 0.0
+        else:
+            auroc = float(roc_auc_score(y_true_arr, y_prob_arr))
+            y_pred_arr = (y_prob_arr >= 0.5).astype(int)
+            f1 = float(f1_score(y_true_arr, y_pred_arr, zero_division=0))
+
+        logger.info("Supplementary AI Day Diagnostic complete: AUROC = %.3f, F1 = %.3f", auroc, f1)
+
         return NC2SupplementaryAIDayResult(
             comparison_name="AI_Nov6_vs_Human_Nov7_and_Nov9_diagnostic",
-            auroc=0.50,
-            f1=0.0,
+            auroc=auroc,
+            f1=f1,
             is_supplementary=True,
         )

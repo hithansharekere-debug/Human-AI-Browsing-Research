@@ -1,0 +1,24 @@
+{
+  "timestamp_utc": "2026-11-15T05:02:47Z",
+  "random_seed": 20261106,
+  "n_total_sessions": 92,
+  "n_primary_sessions": 91,
+  "s0062_excluded_from_primary": true,
+  "environment": {
+    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "win32"
+  },
+  "output_files": [
+    "descriptives.csv",
+    "effect_sizes.csv",
+    "baseline_results.csv",
+    "negative_controls.csv",
+    "family_dropout.csv",
+    "drift_checks.csv",
+    "round_check.csv",
+    "sensitivity.csv",
+    "per_task_results.csv",
+    "per_participant_family_results.csv",
+    "session_features.parquet"
+  ]
+}
