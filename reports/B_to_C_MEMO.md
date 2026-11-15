@@ -30,7 +30,7 @@ The empirical study ingests Person A's frozen, SHA-256 authenticated `pilot-v1` 
   - $T_3$ (Interactive web-app multi-step form entry): 13 human, 10 agent.
   - $T_4$ (Academic bibliographic verification & document search): 13 human, 10 agent.
 - **Primary Analysis Scope ($N=91$):**
-  - Session `S0062` (Human, $T_3$, Participant `P07`) is strictly **excluded** from the primary dataset. In `S0062`, an operator keystroke anomaly logged an active window duration of only $7.0\text{ ms}$ ($t_{\text{end}} - t_{\text{start}} = 0.007\text{ s}$), truncating packet capture within the window.
+  - Session `S0062` (Human, Task $T_1$, Participant `P03`, Round 2, recorded 7 November 2026) is strictly **excluded** from the primary dataset. In `S0062`, an operator keystroke anomaly logged an active window duration of only $7.0\text{ ms}$ ($t_{\text{end}} - t_{\text{start}} = 0.007\text{ s}$), truncating packet capture within the window.
 - **Sensitivity Analysis Scope ($N=92$):**
   - Session `S0062` is retained in sensitivity testing with its active window duration reconstructed from objective Chrome NetLog navigation timestamps ($29.299\text{ s}$).
 - **Ancillary Recordings:**
@@ -52,7 +52,7 @@ The empirical study ingests Person A's frozen, SHA-256 authenticated `pilot-v1` 
    In strict accordance with the Gate 2 methodology resolution (preventing parameter-to-sample ratio distortion while preserving the pre-registered feature family structure), the primary Logistic Regression model is locked to exactly six standardized website-only features:
    - **Timing ($T$):**
      - `T_idle_gap_median`: Median duration (seconds) of silent intervals between packet bursts where inter-arrival time exceeds $\theta_b = 100\text{ ms}$.
-     - `T_burst_rate`: Number of discrete packet bursts per second of active session time.
+     - `T_burst_rate`: Number of discrete packet bursts per minute of active session time ($\text{bursts}\cdot\text{min}^{-1}$).
    - **Volume ($V$):**
      - `V_up_down_ratio`: Ratio of total website upload bytes to download bytes ($\sum \text{bytes}_{\text{up}} / \sum \text{bytes}_{\text{down}}$).
      - `V_upload_burst_share`: Proportion of packet bursts in which upload volume exceeds download volume.
@@ -133,7 +133,7 @@ Evaluating the primary website features across all 91 sessions yields:
 - `T_idle_gap_median`: $\delta = -0.586$ (95% CI $[-0.754, -0.410]$) $\rightarrow$ **Strictly excludes zero.**  
   Agent sessions exhibit substantially longer and more uniform median idle gaps between packet bursts (mean $4.76\text{ s}$ agent vs $2.04\text{ s}$ human). This reflects the agent's multi-modal inference latency (screenshot capture, API transmission, Gemini vision reasoning, action planning) occurring between discrete UI operations.
 - `T_burst_rate`: $\delta = +0.312$ (95% CI $[+0.125, +0.470]$) $\rightarrow$ **Strictly excludes zero.**  
-  Human sessions generate significantly higher burst rates (mean $31.7\text{ bursts/s}$ human vs $23.1\text{ bursts/s}$ agent), driven by continuous manual scrolling, mouse movement triggering asynchronous asset fetches, and rapid exploratory keystrokes.
+  Human sessions generate significantly higher burst rates (mean $31.7\text{ bursts/min}$ human vs $23.1\text{ bursts/min}$ agent), driven by continuous manual scrolling, mouse movement triggering asynchronous asset fetches, and rapid exploratory keystrokes. At the individual task level, $T_{\text{burst\_rate}}$ excludes zero in 2 of 4 tasks ($T_1$ and $T_2$).
 - `V_up_down_ratio`: $\delta = -0.060$ (95% CI $[-0.169, +0.044]$) $\rightarrow$ Straddles zero.
 - `V_upload_burst_share`: $\delta = -0.147$ (95% CI $[-0.323, +0.029]$) $\rightarrow$ Straddles zero.
 - `C_new_flows_per_min`: $\delta = +0.009$ (95% CI $[-0.211, +0.237]$) $\rightarrow$ Straddles zero.
@@ -155,8 +155,9 @@ Micro-behavioral temporal structure ($T$) is the **sole essential driver** of be
 
 ### 9.1 NC1: Within-Task Label Permutation (200 Iterations)
 Labels were randomly permuted 200 times strictly within each task group to preserve task class balances:
-- **NC1 under LOTO:** Null distribution mean $\text{AUROC} = 0.498 \pm 0.061$. Empirical $p = 1.00$. **Passed null check** (centers within $[0.45, 0.55]$). Confirms that task-stratified LOTO evaluation exhibits zero mathematical or structural bias toward false separability.
-- **NC1 under LOPO:** Null distribution mean $\text{AUROC} = 0.431 \pm 0.084$. Empirical $p = 1.00$.
+- **NC1 under LOTO:** Null distribution mean $\text{AUROC} = 0.498 \pm 0.061$. Observed model AUROC = $0.644$. Empirical $p < 0.005$ ($0 / 200$ permutations $\ge 0.644$). **Passed null check** (centers within $[0.45, 0.55]$). Confirms that task-stratified LOTO evaluation exhibits zero mathematical or structural bias toward false separability.
+- **NC1 under LOPO:** Null distribution mean $\text{AUROC} = 0.431 \pm 0.084$. Observed model AUROC = $0.777$. Empirical $p < 0.005$ ($0 / 200$ permutations $\ge 0.777$).  
+  *Statistical Mechanism for LOPO Null Depression:* While within-fold AUROCs average $0.467 \approx 0.50$, pooling out-of-fold predictions into a single global ROC curve across folds with unequal group sizes (P01–P03 have 11–12 sessions, P04–P10 have 8 sessions) and uncalibrated probabilities induces ranking distortion across folds with differing intercepts, depressing the pooled null AUROC below 0.50. Under both splits, zero permuted models reached the observed performance.
 
 ### 9.2 NC2: Collection Day Controls
 - **NC2 Primary (Human 7 Nov vs Human 9 Nov):**
@@ -199,7 +200,7 @@ As documented in `results/sensitivity.csv`, the primary `B6_core6` model was sub
 5. **Burst Threshold Perturbation ($\theta_b = 250\text{ ms}$):**
    Loosening the packet burst threshold from 100 ms to 250 ms yielded $\text{AUROC} = 0.777$ ($\Delta = 0.000$).
 6. **Unequal Rounds Ablation ($N=80$):**
-   Dropping all round-2 sessions from participants P01–P03 to eliminate round imbalance yielded $\text{AUROC} = 0.808$ ($\Delta = +0.031$).
+   Dropping all round-2 sessions from participants P01–P03 ($S0045, S0046, S0047, S0048, S0053, S0054, S0055, S0056, S0061, S0062, S0063, S0064$) retains exactly 40 human and 40 agent round-1 sessions ($N=80$). Note that because $S0062$ was already excluded from the primary population ($N=91$), dropping round 2 removes the remaining 11 sessions ($91 - 11 = 80$). Naively subtracting 12 from 91 would yield 79, which double-subtracts S0062. Evaluating on the $N=80$ population yields $\text{AUROC} = 0.808$ ($\Delta = +0.031$).
 7. **Alternative Classifier (Random Forest 500 Trees):**
    Fitting an un-tuned 500-tree Random Forest on the identical six features yielded $\text{AUROC} = 0.797$ ($\Delta = +0.020$).
 
@@ -216,16 +217,14 @@ As documented in `results/sensitivity.csv`, the primary `B6_core6` model was sub
 4. **Task Success Uniformity:** All recorded sessions successfully completed their tasks; classification performance during error recovery or navigation failures was not observed.
 
 ### Binding Decision Rule Evaluation
-Per `analysis/PREREG.md` §6, the binding decision rule requires evaluating four sequential criteria:
-1. **Negative Control B2 (JA4 Handshake):** Observed LOPO $\text{AUROC} = 0.423 \le 0.60$. $\rightarrow$ **CRITERION MET (PASSED)**.
-2. **Primary Effect Sizes:** Two primary timing features (`T_idle_gap_median` and `T_burst_rate`) have 95% cluster-bootstrap confidence intervals strictly excluding zero. $\rightarrow$ **CRITERION MET (PASSED)**.
-3. **Primary Model Discrimination:** `B6_core6` LOPO $\text{AUROC} = 0.777 \ge 0.70$. $\rightarrow$ **CRITERION MET (PASSED)**.
-4. **Negative Control NC2 (Collection-Day Invariance):** NC2 Primary observed $\text{AUROC} = 0.354$, departing from the equivalence interval $[0.40, 0.60]$, and collection days were un-interleaved. $\rightarrow$ **CRITERION FAILED (CONFOUND DETECTED)**.
+Per `analysis/PREREG.md` §7, the binding decision rule requires evaluating sequential stop conditions and pilot outcome criteria:
+1. **Negative Control B2 (JA4 Handshake):** Observed LOPO $\text{AUROC} = 0.423 \le 0.60$ (LOTO: $0.493$). $\rightarrow$ **CRITERION MET (PASSED)**. Confirms no browser-handshake discrimination.
+2. **Primary Effect Sizes & LOTO Lower Bound:** Overall, two primary timing features (`T_idle_gap_median` and `T_burst_rate`) have 95% cluster-bootstrap CIs strictly excluding zero. However, under the strict per-task criterion ($\ge 2$ features excluding zero in $\ge 3$ tasks), only `T_idle_gap_median` excludes zero in $\ge 3$ tasks ($T_1, T_2, T_4$), while `T_burst_rate` excludes zero in 2 tasks ($T_1, T_2$). Furthermore, B6 LOTO 95% CI lower bound is $0.499 \le 0.50$, straddling chance across unseen tasks. $\rightarrow$ **PARTIALLY MET (STRADDLES CHANCE UNDER LOTO)**.
+3. **Primary Model Discrimination:** `B6_core6` LOPO $\text{AUROC} = 0.777 \ge 0.70$. $\rightarrow$ **CRITERION MET (SEPARABLE IN THIS DATASET)**.
+4. **Negative Control NC2 & Day Confound Binding Rule:** NC2 Primary observed $\text{AUROC} = 0.354$, departing from the equivalence interval $[0.40, 0.60]$, and collection days were un-interleaved. Under the binding Day-Confound Rule (`PREREG.md` §7), any finding from this pilot can only state "separable in this dataset", and an unreserved `GO` is strictly prohibited. $\rightarrow$ **CONFOUND DETECTED (BINDING RECOLLECTION REQUIREMENT)**.
 
 ### Verdict
-Because Criteria 1–3 pass but Criterion 4 identifies day/cohort-level confounding, the pre-registered decision rule strictly prohibits an unreserved `GO`.
-
-The formal empirical verdict is:
+Because of the un-interleaved collection day schedule and NC2 cohort separation, the pre-registered protocol mandates:
 $$\mathbf{CONDITIONAL\ GO}$$
 *(Separable in this dataset; re-collect with an interleaved schedule across multi-day blocks before asserting operational detectability).*
 

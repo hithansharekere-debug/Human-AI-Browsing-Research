@@ -1,5 +1,5 @@
 control_id,name,n_permutations,observed_auroc,null_mean_auroc,null_std_auroc,empirical_p_value,passed_null_check,notes
-NC1_LOTO,Within-task label permutation (4-fold LOTO),200,0.5,0.49813235294117647,0.06086854517257968,1.0,True,"Null distribution centers near 0.50 ([0.45, 0.55])"
-NC1_LOPO,Within-task label permutation (10-fold LOPO),200,0.5,0.4308823529411765,0.08433428556888624,1.0,False,"Null distribution centers near 0.50 ([0.45, 0.55])"
+NC1_LOTO,Within-task label permutation (4-fold LOTO),200,0.6441176470588236,0.49813235294117647,0.06086854517257968,0.0,True,"Null distribution centers near 0.50 ([0.45, 0.55])"
+NC1_LOPO,Within-task label permutation (10-fold LOPO),200,0.7769607843137256,0.4308823529411765,0.08433428556888624,0.0,False,"Null distribution centers near 0.50 ([0.45, 0.55])"
 NC2_PRIMARY,Human-vs-Human day control (7 Nov vs 9 Nov),0,0.35384615384615387,0.5,0.0,0.0,False,"Participant-grouped folds, pooled AUROC. Detects day/cohort separability."
 NC2_SUPPLEMENTARY,Supplementary AI-vs-Human day diagnostic (AI Nov 6 vs Human Nov 7/9),0,0.7769607843137256,0.5,0.0,0.0,False,Supplementary diagnostic confounded by collection day

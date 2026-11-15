@@ -1,12 +1,49 @@
 {
-  "timestamp_utc": "2026-11-15T05:02:47Z",
-  "random_seed": 20261106,
-  "n_total_sessions": 92,
-  "n_primary_sessions": 91,
-  "s0062_excluded_from_primary": true,
-  "environment": {
-    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
-    "platform": "win32"
+  "timestamp_utc": "2026-11-15T05:52:30Z",
+  "code_revision": "d1ebafa",
+  "dataset": "pilot-v1",
+  "sessions_csv_sha256": "a648da5155d71fa4f02895c0e410c1a51127d60dd5ddd0611246f55a8b545188",
+  "random_seeds": {
+    "global_seed": 20261106,
+    "bootstrap_seed": 20261106,
+    "permutation_seed": 20261106,
+    "random_forest_seed": 20261106
+  },
+  "feature_extraction_config": {
+    "window_scope": "active_in_window [t_start, t_end]",
+    "burst_threshold_theta_b_ms": 100.0,
+    "t_burst_rate_unit": "bursts_per_minute",
+    "flow_classification_rules": "features/flow_rules.yaml"
+  },
+  "inclusion_exclusion": {
+    "total_study_sessions": 92,
+    "primary_analysis_population": 91,
+    "s0062_excluded_from_primary": true,
+    "s0062_primary_exclusion_reason": "Operator marker duration anomaly (0.007 s)",
+    "sensitivity_analysis_population": 92,
+    "s0062_reconstructed_window_s": 29.299
+  },
+  "model_configurations": {
+    "B6_core6": "LogisticRegression(penalty='l2', C=1.0, solver='lbfgs', max_iter=1000)",
+    "B6_rf500": "RandomForestClassifier(n_estimators=500, random_state=20261106)"
+  },
+  "evaluation_splits": {
+    "LOTO": "4-fold Leave-One-Task-Out",
+    "LOPO": "10-fold Leave-One-Participant-Out"
+  },
+  "bootstrap_settings": {
+    "n_resamples": 2000,
+    "confidence_level": 0.95,
+    "cluster_units": "human participant_id, agent independent run"
+  },
+  "software_versions": {
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "win32",
+    "scikit_learn": "1.9.1",
+    "pyarrow": "26.0.1",
+    "pandas": "3.1.1",
+    "numpy": "2.4.6",
+    "scapy": "2.8.0"
   },
   "output_files": [
     "descriptives.csv",
@@ -20,5 +57,18 @@
     "per_task_results.csv",
     "per_participant_family_results.csv",
     "session_features.parquet"
-  ]
+  ],
+  "output_file_sha256": {
+    "descriptives.csv": "fea726371fb9ee09eaf4bf419a080f000021af7c22af8346356243fe360c1e69",
+    "effect_sizes.csv": "020fd74d2f3b75eb0c5fa31b673a93fd0f28f04f293e619bdccb4632adacb87a",
+    "baseline_results.csv": "188d92f8753b889a2ea6ba7629369b6fee09f5ffccb89aab4c731a4e908a4b19",
+    "negative_controls.csv": "517855ca548e7b2630b39d0420f7467d9f1c5b2787e6ed387d7a68cab9f9d770",
+    "family_dropout.csv": "b6003d2d35f0d56ed87fb63943f6495a241d7776c694270fefdf31b59e239186",
+    "drift_checks.csv": "ef2a750045623c6c9109213703acb9271e56b200390b7f34025b93943576b7be",
+    "round_check.csv": "f890c13fae235fcb330ebbfc08f56e0e1375e251757a08c6e4b6d93f456cca9b",
+    "sensitivity.csv": "529cb7e1998c174fdab814047f5b9cb92fc0438d5ed237e7e62e2995d48595d9",
+    "per_task_results.csv": "0755e1d6b33dc3a8c577b83f7354c2354277d90cd8f3dcc1f3ffdf1da496ab4d",
+    "per_participant_family_results.csv": "c0b200d7022e081812e97871293afc822d99e569aa7b577e2df31900961c4b9a",
+    "session_features.parquet": "216a638651ca59fbda46c6a2311cf981b498e55544eca5875c3e1aefad9d5c07"
+  }
 }

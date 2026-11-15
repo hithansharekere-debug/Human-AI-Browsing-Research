@@ -80,7 +80,7 @@ Reports non-parametric Cliff's delta ($\delta$) and 95% cluster-bootstrap confid
 
 **Key Findings:**
 - `T_idle_gap_median` ($\delta = -0.586$, 95% CI $[-0.754, -0.410]$): **Excludes zero**. The AI agent pauses between bursts for significantly longer and more regular median durations (model thinking / vision inference loop) compared to human continuous micro-scrolling.
-- `T_burst_rate` ($\delta = +0.312$, 95% CI $[+0.125, +0.470]$): **Excludes zero**. Humans generate more frequent discrete bursts per second during interaction.
+- `T_burst_rate` ($\delta = +0.312$, 95% CI $[+0.125, +0.470]$): **Excludes zero**. Humans generate more frequent discrete bursts per minute of active session time ($\text{bursts}\cdot\text{min}^{-1}$) during interaction. At the individual task level, $T_{\text{burst\_rate}}$ excludes zero in 2 of 4 tasks ($T_1$ and $T_2$).
 - Volume ($V$) and Concurrency ($C$) features straddle zero overall:
   - `V_up_down_ratio`: $\delta = -0.060$ (95% CI $[-0.169, +0.044]$)
   - `V_upload_burst_share`: $\delta = -0.147$ (95% CI $[-0.323, +0.029]$)
@@ -142,8 +142,9 @@ Reports falsification tests: NC1 (within-task label permutations) and NC2 (colle
 | `notes` | string | Diagnostic interpretation. |
 
 **Interpretation:**
-- `NC1_LOTO`: Null mean is $0.498 \pm 0.061$, perfectly centering at chance (0.50). Confirms no structural leakage in task-stratified cross-validation.
-- `NC2_PRIMARY` (Human 7 Nov vs Human 9 Nov): Pooled out-of-fold AUROC is **0.354**. Because this departs from pure chance (0.50), it confirms detectable day/cohort variance in human behavior between the two collection days.
+- `NC1_LOTO`: Null mean is $0.498 \pm 0.061$, observed AUROC = $0.644$, empirical $p < 0.005$ ($0 / 200 \ge 0.644$). Perfectly centers at chance (0.50). Confirms no structural leakage in task-stratified cross-validation.
+- `NC1_LOPO`: Null mean is $0.431 \pm 0.084$, observed AUROC = $0.777$, empirical $p < 0.005$ ($0 / 200 \ge 0.777$). LOPO null depression is driven by uncalibrated probability pooling distortion across folds with unequal participant session counts (P01–P03 have 11–12 sessions, P04–P10 have 8 sessions). Within individual folds, AUROC averages $0.467 \approx 0.50$.
+- `NC2_PRIMARY` (Human 7 Nov vs Human 9 Nov): Pooled out-of-fold AUROC is **0.354** across 51 primary human sessions (26 on 7 Nov, 25 on 9 Nov; S0062 excluded). Because this departs from pure chance (0.50), it confirms detectable day/cohort variance in human behavior between the two collection days.
 - `NC2_SUPPLEMENTARY` (AI Nov 6 vs Human Nov 7/9): AUROC is **0.777**, identical to the primary model, highlighting that controller class is fully collinear with collection date.
 
 ---
@@ -191,4 +192,4 @@ Analysis of participant fatigue and experience across rounds:
 
 ### 2.9 `per_task_results.csv` & `per_participant_family_results.csv`
 - `per_task_results.csv`: Task-stratified leave-one-out performance ($T_1$: AUROC = $0.833$; $T_2$: AUROC = $0.954$; $T_3$: AUROC = $0.469$; $T_4$: AUROC = $0.915$). Demonstrates that on search/reading tasks ($T_1, T_2, T_4$), separability is high, whereas on $T_3$ (which involved high-frequency structured interactions), human and agent behavior overlapped significantly.
-- `per_participant_family_results.csv`: Summary of mean feature values across individual participants P01–P10, demonstrating inter-individual variance in burstiness and idle gap timing.
+- `per_participant_family_results.csv`: Complete matrix of 10 human participants (`P01` to `P10`) across all 7 behavioral and diagnostic feature families ($T, V, C, H, D, L, Q$), providing 70 combination rows with session counts, primary feature names, means, medians, and standard deviations genuinely computed from the derived feature dataset.

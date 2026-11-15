@@ -316,7 +316,14 @@ def main():
     X_b6 = df_primary_sess[BASELINE_FEATURE_POOLS["B6_core6"]].to_numpy()
 
     # NC1: 200 within-task label permutations under LOTO and LOPO
-    nc1_results = validator.run_nc1_both_splits(df_primary_sess, X_b6)
+    b6_loto_obs = next(r["auroc"] for r in base_rows if r["baseline"] == "B6" and r["split"] == "LOTO")
+    b6_lopo_obs = next(r["auroc"] for r in base_rows if r["baseline"] == "B6" and r["split"] == "LOPO")
+    nc1_results = validator.run_nc1_both_splits(
+        df_primary_sess,
+        X_b6,
+        observed_auroc_loto=b6_loto_obs,
+        observed_auroc_lopo=b6_lopo_obs,
+    )
 
     # Primary NC2: Human 7 Nov vs Human 9 Nov (participant-grouped folds)
     human_mask = df_primary_sess["controller"] == "human"
@@ -456,51 +463,110 @@ def main():
     df_per_task = pd.DataFrame(task_rows)
     df_per_task.to_csv(RESULTS_DIR / "per_task_results.csv", index=False)
 
-    # 9. Per-Participant Family Results
+    # 9. Per-Participant Family Results (Complete 10 participants x 7 families = 70 combinations)
     logger.info("Step 8: Generating per-participant family results table...")
     part_rows = []
+    families_meta = [
+        ("T", "Timing", "T_idle_gap_median"),
+        ("V", "Volume", "V_up_down_ratio"),
+        ("C", "Concurrency", "C_new_flows_per_min"),
+        ("H", "Handshake", "H_ja4_n_distinct"),
+        ("D", "Destination", "D_search_present"),
+        ("L", "Length", "L_duration_s"),
+        ("Q", "Background", "Q_background_bytes"),
+    ]
     for pid, group in df_primary_sess.groupby("participant_id"):
-        if pid == "NA" or not pid:
+        if pid == "NA" or not pid or pid == "None":
             continue
-        part_rows.append({
-            "participant_id": pid,
-            "n_sessions": len(group),
-            "t_idle_gap_median_mean": float(group["T_idle_gap_median"].mean()),
-            "t_burst_rate_mean": float(group["T_burst_rate"].mean()),
-            "v_up_down_ratio_mean": float(group["V_up_down_ratio"].mean()),
-            "v_upload_burst_share_mean": float(group["V_upload_burst_share"].mean()),
-            "c_new_flows_per_min_mean": float(group["C_new_flows_per_min"].mean()),
-            "c_max_concurrent_mean": float(group["C_max_concurrent"].mean()),
-            "q_background_bytes_mean": float(group["Q_background_bytes"].mean()),
-        })
+        for fam_code, fam_name, primary_feat in families_meta:
+            vals = group[primary_feat].dropna().values
+            part_rows.append({
+                "participant_id": pid,
+                "family": fam_code,
+                "family_name": fam_name,
+                "primary_feature": primary_feat,
+                "n_sessions": len(group),
+                "mean": float(np.mean(vals)) if len(vals) > 0 else 0.0,
+                "median": float(np.median(vals)) if len(vals) > 0 else 0.0,
+                "std": float(np.std(vals)) if len(vals) > 0 else 0.0,
+            })
     df_part = pd.DataFrame(part_rows)
     df_part.to_csv(RESULTS_DIR / "per_participant_family_results.csv", index=False)
 
-    # 10. Run Manifest
+    # 10. Run Manifest with Comprehensive Reproducibility and Audit Metadata
     logger.info("Step 9: Generating run manifest...")
+    import sklearn
+    import pyarrow
+    import scapy
+
+    output_files_list = [
+        "descriptives.csv",
+        "effect_sizes.csv",
+        "baseline_results.csv",
+        "negative_controls.csv",
+        "family_dropout.csv",
+        "drift_checks.csv",
+        "round_check.csv",
+        "sensitivity.csv",
+        "per_task_results.csv",
+        "per_participant_family_results.csv",
+        "session_features.parquet",
+    ]
+    file_hashes = {}
+    for fname in output_files_list:
+        fpath = RESULTS_DIR / fname if (RESULTS_DIR / fname).exists() else PROCESSED_DIR / fname
+        if fpath.exists():
+            file_hashes[fname] = hashlib.sha256(fpath.read_bytes()).hexdigest()
+
     manifest_data = {
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "random_seed": 20261106,
-        "n_total_sessions": n_total,
-        "n_primary_sessions": n_primary,
-        "s0062_excluded_from_primary": True,
-        "environment": {
-            "python_version": sys.version,
-            "platform": sys.platform,
+        "code_revision": "d1ebafa",
+        "dataset": "pilot-v1",
+        "sessions_csv_sha256": "a648da5155d71fa4f02895c0e410c1a51127d60dd5ddd0611246f55a8b545188",
+        "random_seeds": {
+            "global_seed": 20261106,
+            "bootstrap_seed": 20261106,
+            "permutation_seed": 20261106,
+            "random_forest_seed": 20261106,
         },
-        "output_files": [
-            "descriptives.csv",
-            "effect_sizes.csv",
-            "baseline_results.csv",
-            "negative_controls.csv",
-            "family_dropout.csv",
-            "drift_checks.csv",
-            "round_check.csv",
-            "sensitivity.csv",
-            "per_task_results.csv",
-            "per_participant_family_results.csv",
-            "session_features.parquet",
-        ],
+        "feature_extraction_config": {
+            "window_scope": "active_in_window [t_start, t_end]",
+            "burst_threshold_theta_b_ms": 100.0,
+            "t_burst_rate_unit": "bursts_per_minute",
+            "flow_classification_rules": "features/flow_rules.yaml",
+        },
+        "inclusion_exclusion": {
+            "total_study_sessions": n_total,
+            "primary_analysis_population": n_primary,
+            "s0062_excluded_from_primary": True,
+            "s0062_primary_exclusion_reason": "Operator marker duration anomaly (0.007 s)",
+            "sensitivity_analysis_population": 92,
+            "s0062_reconstructed_window_s": 29.299,
+        },
+        "model_configurations": {
+            "B6_core6": "LogisticRegression(penalty='l2', C=1.0, solver='lbfgs', max_iter=1000)",
+            "B6_rf500": "RandomForestClassifier(n_estimators=500, random_state=20261106)",
+        },
+        "evaluation_splits": {
+            "LOTO": "4-fold Leave-One-Task-Out",
+            "LOPO": "10-fold Leave-One-Participant-Out",
+        },
+        "bootstrap_settings": {
+            "n_resamples": 2000,
+            "confidence_level": 0.95,
+            "cluster_units": "human participant_id, agent independent run",
+        },
+        "software_versions": {
+            "python": sys.version,
+            "platform": sys.platform,
+            "scikit_learn": sklearn.__version__,
+            "pyarrow": pyarrow.__version__,
+            "pandas": pd.__version__,
+            "numpy": np.__version__,
+            "scapy": scapy.__version__,
+        },
+        "output_files": output_files_list,
+        "output_file_sha256": file_hashes,
     }
     with open(RESULTS_DIR / "run_manifest.json", "w", encoding="utf-8") as f:
         json.dump(manifest_data, f, indent=2)
