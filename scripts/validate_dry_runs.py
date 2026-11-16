@@ -84,24 +84,25 @@ def extract_session_features_from_pcap(
     classifier: FlowClassifier,
     theta_b_sec: float = 0.100,  # 100 ms burst threshold
     theta_i_sec: float = 0.500,  # 500 ms idle threshold
+    custom_bounds: Optional[Tuple[float, float]] = None,
+    include_search_in_website: bool = False,
+    packets: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
     """Extracts all SPEC.md session features from a raw pcap."""
-    t_start, t_end = extract_hardware_marker_bounds(pcap_path, session_id)
+    if custom_bounds is not None:
+        t_start, t_end = custom_bounds
+    else:
+        t_start, t_end = extract_hardware_marker_bounds(pcap_path, session_id)
     if t_start is None or t_end is None or t_end <= t_start:
         raise ValueError(f"Could not extract valid marker bounds for {session_id}")
 
     dur_s = float(t_end - t_start)
-    packets = scapy.rdpcap(str(pcap_path))
+    if packets is None:
+        packets = scapy.rdpcap(str(pcap_path))
 
-    # Identify client IP (e.g. [private LAN address]) and build whole-pcap IP-to-domain map (DNS + TLS ClientHello)
+    # Identify client IP from marker packets across the capture
     client_ips: set[str] = set()
-    ip_to_domain = {}
-
     for p in packets:
-        dst_ip = p[scapy.IP].dst if p.haslayer(scapy.IP) else (p[scapy.IPv6].dst if p.haslayer(scapy.IPv6) else "")
-        src_ip = p[scapy.IP].src if p.haslayer(scapy.IP) else (p[scapy.IPv6].src if p.haslayer(scapy.IPv6) else "")
-
-        # Identify client IP from IPv4 or IPv6 marker packets (UDP to marker IP or P1MARK payload)
         if p.haslayer(scapy.UDP) and p[scapy.UDP].payload:
             payload_bytes = bytes(p[scapy.UDP].payload)
             if payload_bytes.startswith(b"P1MARK"):
@@ -114,26 +115,12 @@ def extract_session_features_from_pcap(
         elif p.haslayer(scapy.IPv6) and p[scapy.IPv6].dst == "2001:db8::1":
             client_ips.add(p[scapy.IPv6].src)
 
-        if p.haslayer(scapy.TCP) and p[scapy.TCP].payload:
-            sni = extract_sni_from_payload(bytes(p[scapy.TCP].payload))
-            if sni:
-                if dst_ip:
-                    ip_to_domain[dst_ip] = sni
-                if src_ip:
-                    ip_to_domain[src_ip] = sni
-        elif p.haslayer(scapy.DNSRR):
-            try:
-                rrname = p[scapy.DNSRR].rrname.decode("utf-8", errors="ignore").rstrip(".")
-                rdata = str(p[scapy.DNSRR].rdata)
-                ip_to_domain[rdata] = rrname
-            except Exception:
-                pass
-
     # In-window packet clipping & exclusions
     in_window_pkts = []
     v4_bytes = 0
     v6_bytes = 0
     lan_packets_dropped = 0
+    in_window_dns_map: Dict[str, str] = {}
 
     lan_ports = {5353, 1900, 5355, 137, 138, 139, 445}
 
@@ -175,14 +162,23 @@ def extract_session_features_from_pcap(
             lan_packets_dropped += 1
             continue
 
+        # In-window DNS resolution only
+        if p.haslayer(scapy.DNSRR):
+            try:
+                rrname = p[scapy.DNSRR].rrname.decode("utf-8", errors="ignore").rstrip(".")
+                rdata = str(p[scapy.DNSRR].rdata)
+                in_window_dns_map[rdata] = rrname
+            except Exception:
+                pass
+
         in_window_pkts.append(p)
 
     total_bytes = v4_bytes + v6_bytes
     pct_v6 = (v6_bytes / total_bytes * 100.0) if total_bytes > 0 else 0.0
 
-    # Flow reassembly: 5-tuple, idle timeout 30s
+    # Flow reassembly: 5-tuple
     flows: Dict[Any, List[Any]] = {}
-    flow_snis: Dict[Any, str] = {}
+    flow_endpoints: Dict[Any, Dict[str, Any]] = {}
     flow_quic: Dict[Any, bool] = {}
 
     for p in in_window_pkts:
@@ -206,56 +202,105 @@ def extract_session_features_from_pcap(
             sport = p[scapy.UDP].sport
             dport = p[scapy.UDP].dport
 
-        # Lookup SNI/domain from whole-pcap map
-        sni = ip_to_domain.get(dst_ip) or ip_to_domain.get(src_ip) or ""
         key = (proto, min((src_ip, sport), (dst_ip, dport)), max((src_ip, sport), (dst_ip, dport)))
 
         if key not in flows:
             flows[key] = []
             flow_quic[key] = (proto == "UDP" and (dport == 443 or sport == 443))
-            flow_snis[key] = sni
-        elif sni and not flow_snis.get(key):
-            flow_snis[key] = sni
+
+            # Determine server IP vs client IP
+            if src_ip in client_ips:
+                c_ip, c_port = src_ip, sport
+                s_ip, s_port = dst_ip, dport
+            elif dst_ip in client_ips:
+                c_ip, c_port = dst_ip, dport
+                s_ip, s_port = src_ip, sport
+            elif src_ip.startswith("192.168.") or src_ip.startswith("10.") or src_ip.startswith("fe80:"):
+                c_ip, c_port = src_ip, sport
+                s_ip, s_port = dst_ip, dport
+            else:
+                s_ip, s_port = dst_ip, dport
+                c_ip, c_port = src_ip, sport
+
+            flow_endpoints[key] = {
+                "server_ip": s_ip,
+                "server_port": s_port,
+                "client_ip": c_ip,
+                "client_port": c_port,
+            }
 
         flows[key].append(p)
 
     # Classify flows and calculate session-level metrics
     n_flows = len(flows)
     website_flow_packets = []
-    vendor_bytes = 0.0
-    vendor_present = 0
-    os_background_bytes = 0.0
-    gvt1_bytes = 0.0
-    edge_present = 0
-    search_present = 0
-    dest_hosts = set()
-    unknown_bytes = 0.0
-
+    website_flow_intervals = []
     website_flow_count = 0
     website_quic_count = 0
-    website_flow_intervals = []
+
+    website_bytes = 0.0
+    search_bytes = 0.0
+    os_background_bytes = 0.0
+    vendor_bytes = 0.0
+    unknown_bytes = 0.0
+
+    vendor_present = 0
+    search_present = 0
+    edge_present = 0
+    gvt1_bytes = 0.0
+    dest_hosts = set()
 
     for key, pkt_list in flows.items():
-        sni = flow_snis.get(key, "")
-        flow_class = classifier.classify_domain(sni) if sni else "unknown"
-        f_bytes = sum(len(p) for p in pkt_list)
+        ep = flow_endpoints[key]
+        s_ip = ep["server_ip"]
+        s_port = ep["server_port"]
+        c_ip = ep["client_ip"]
+        c_port = ep["client_port"]
 
-        if sni:
-            dest_hosts.add(sni)
+        # Extract SNI from flow's TLS ClientHello packets
+        flow_sni = ""
+        for p in pkt_list:
+            if p.haslayer(scapy.TCP) and p[scapy.TCP].payload:
+                s = extract_sni_from_payload(bytes(p[scapy.TCP].payload))
+                if s:
+                    flow_sni = s.lower().strip()
+                    break
+
+        if not flow_sni and s_ip in in_window_dns_map:
+            flow_sni = in_window_dns_map[s_ip].lower().strip()
+
+        # Classify flow using FlowClassifier with both hostname and server_ip
+        flow_row = pd.Series({
+            "requested_server_name": flow_sni,
+            "dst_ip": s_ip,
+            "src_ip": c_ip,
+            "dst_port": s_port,
+            "src_port": c_port,
+        })
+        flow_class = classifier.classify_flow_domain(flow_row)
+
+        if include_search_in_website and flow_class == "search":
+            flow_class = "website"
+
+        f_bytes = sum(len(p) for p in pkt_list)
+        if flow_sni:
+            dest_hosts.add(flow_sni)
 
         if flow_class == "vendor":
             vendor_present = 1
             vendor_bytes += f_bytes
         elif flow_class == "search":
             search_present = 1
+            search_bytes += f_bytes
         elif flow_class == "os_background":
             os_background_bytes += f_bytes
-            if "gvt1" in sni:
+            if "gvt1" in flow_sni or "edgedl.me.gvt1.com" in flow_sni or s_ip == "2600:1900:4110:86f::":
                 gvt1_bytes += f_bytes
-            if any(e in sni for e in ["edge.microsoft.com", "bing.com", "msn.com"]):
+            if any(e in flow_sni for e in ["edge.microsoft.com", "bing.com", "msn.com"]):
                 edge_present = 1
         elif flow_class == "website":
             website_flow_count += 1
+            website_bytes += f_bytes
             if flow_quic.get(key, False):
                 website_quic_count += 1
             website_flow_packets.extend(pkt_list)
@@ -372,8 +417,8 @@ def extract_session_features_from_pcap(
         # Shortcut / Control / Diagnostic features
         "A_vendor_present": vendor_present,
         "A_vendor_bytes": vendor_bytes,
-        "H_ja4_mode": "t13d1516h2",
-        "H_ja4_n_distinct": 1 if website_flow_count > 0 else 0,
+        "H_ja4_mode": "NOT_RUN",
+        "H_ja4_n_distinct": np.nan,
         "D_dest_count": len(dest_hosts),
         "D_search_present": search_present,
         "Q_background_bytes": os_background_bytes,
@@ -381,6 +426,11 @@ def extract_session_features_from_pcap(
         "Q_edge_present": edge_present,
         "unknown_bytes": unknown_bytes,
         "unknown_byte_share": float(unknown_bytes / max(1.0, total_bytes)),
+        # Sanitized byte accounting columns
+        "website_bytes": website_bytes,
+        "search_bytes": search_bytes,
+        "os_background_bytes": os_background_bytes,
+        "vendor_bytes": vendor_bytes,
     }
 
 

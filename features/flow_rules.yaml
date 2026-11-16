@@ -111,7 +111,7 @@ flow_classification:
       description: "Browser omnibox search suggestion queries (human typing behavior)"
       domains:
         - "www.google.com"
-        - "*.google.com"
+        - "suggestqueries.google.com"
 
     # --------------------------------------------------------------------------
     # 3. OS BACKGROUND (System & Desktop Telemetry, Personal Apps, Updates)
@@ -130,6 +130,10 @@ flow_classification:
         - "gvt1.com"
         - "play.google.com"
         - "accounts.google.com"
+        - "clients1.google.com"
+        - "clients2.google.com"
+        - "clients4.google.com"
+        - "*.googleapis.com"
 
         # Personal applications (Addendum 07 §1)
         - "spotify.com"              # 23 human sessions on 7 & 9 Nov (Confound F1/F5)

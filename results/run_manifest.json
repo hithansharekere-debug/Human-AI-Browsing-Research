@@ -1,6 +1,6 @@
 {
-  "timestamp_utc": "2026-11-15T05:52:30Z",
-  "code_revision": "d1ebafa",
+  "timestamp_utc": "2026-11-16T17:27:06Z",
+  "code_revision": "review/data-provider-corrections-2026-11-17",
   "dataset": "pilot-v1",
   "sessions_csv_sha256": "a648da5155d71fa4f02895c0e410c1a51127d60dd5ddd0611246f55a8b545188",
   "random_seeds": {
@@ -47,6 +47,7 @@
   },
   "output_files": [
     "descriptives.csv",
+    "byte_accounting.csv",
     "effect_sizes.csv",
     "baseline_results.csv",
     "negative_controls.csv",
@@ -59,16 +60,17 @@
     "session_features.parquet"
   ],
   "output_file_sha256": {
-    "descriptives.csv": "fea726371fb9ee09eaf4bf419a080f000021af7c22af8346356243fe360c1e69",
-    "effect_sizes.csv": "020fd74d2f3b75eb0c5fa31b673a93fd0f28f04f293e619bdccb4632adacb87a",
-    "baseline_results.csv": "188d92f8753b889a2ea6ba7629369b6fee09f5ffccb89aab4c731a4e908a4b19",
-    "negative_controls.csv": "517855ca548e7b2630b39d0420f7467d9f1c5b2787e6ed387d7a68cab9f9d770",
-    "family_dropout.csv": "b6003d2d35f0d56ed87fb63943f6495a241d7776c694270fefdf31b59e239186",
-    "drift_checks.csv": "ef2a750045623c6c9109213703acb9271e56b200390b7f34025b93943576b7be",
-    "round_check.csv": "f890c13fae235fcb330ebbfc08f56e0e1375e251757a08c6e4b6d93f456cca9b",
-    "sensitivity.csv": "529cb7e1998c174fdab814047f5b9cb92fc0438d5ed237e7e62e2995d48595d9",
-    "per_task_results.csv": "0755e1d6b33dc3a8c577b83f7354c2354277d90cd8f3dcc1f3ffdf1da496ab4d",
-    "per_participant_family_results.csv": "c0b200d7022e081812e97871293afc822d99e569aa7b577e2df31900961c4b9a",
-    "session_features.parquet": "216a638651ca59fbda46c6a2311cf981b498e55544eca5875c3e1aefad9d5c07"
+    "descriptives.csv": "1c6138ad5d6e048ed7109cbe095e3d0d592ebf449e53578a9c43cf895fd4e168",
+    "byte_accounting.csv": "5d2438ba46ba751b71288c81a74866435503387e1ebcdb98eb2a47fd9741ea09",
+    "effect_sizes.csv": "1479bc62fa74e4f9c1f234756041668d330645fd9e0a687bd3108375efcefc63",
+    "baseline_results.csv": "93a59bb0f9341620246fb2f541641d9491bfaa232a97365cb9cb012810e0a211",
+    "negative_controls.csv": "2d0f4566ee43f108061f180ef50603a5c30527f9e5e0a0eb7570c33a3fb32cff",
+    "family_dropout.csv": "d4e73545d051f42ae8727f3955e78793df57798b7ac604d6434f1285727787fc",
+    "drift_checks.csv": "c74a2d6180ba16919eaef48e29ae4734eab10a475bea10c0c8b3d0fc8d3704ba",
+    "round_check.csv": "9450247682d3839aa5c299f55918b72e56ef1527c376fd12c0a8a64d5e8a4686",
+    "sensitivity.csv": "62039fd14f1775be6f1e09be746129b8992fe73dc84ef06dffd8ad9175b3b46a",
+    "per_task_results.csv": "24964f8e6ec3dfbcf6b956bff1491b0344bb78a4b2843baf6a3ff6011b3ee9dc",
+    "per_participant_family_results.csv": "36094755814b79a6300e01199ca01715d9df67a8c57a57acac6090c2aad1c699",
+    "session_features.parquet": "86bdb5b270db64527786bbbd5143da9097afdbd75f73c7e5e821bf35efd6f27c"
   }
 }

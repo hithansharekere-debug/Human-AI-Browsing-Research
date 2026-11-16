@@ -53,6 +53,7 @@ BASELINE_FEATURE_POOLS: Dict[str, List[str]] = {
     "B2": ["H_ja4_mode", "H_ja4_n_distinct"],
     "B3": ["D_dest_count", "D_search_present"],
     "B4": ["L_duration_s", "L_total_bytes", "L_n_flows"],
+    "B4_duration_only": ["L_duration_s"],
     "B4_gvt1_diag": ["L_duration_s", "L_total_bytes_with_gvt1", "L_n_flows_with_gvt1"],
     "B5": [
         # All flows T+V+C (unfiltered diagnostic showing F1 gvt1 and F2 search contamination)

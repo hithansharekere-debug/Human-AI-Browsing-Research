@@ -49,17 +49,23 @@ def plot_baseline_comparison():
     df_loto = df_filtered[df_filtered["split"] == "LOTO"].set_index("baseline").reindex(baselines)
     df_lopo = df_filtered[df_filtered["split"] == "LOPO"].set_index("baseline").reindex(baselines)
 
+    loto_vals = df_loto["auroc"].fillna(0.0)
+    lopo_vals = df_lopo["auroc"].fillna(0.0)
     loto_err = [
-        df_loto["auroc"] - df_loto["ci_95_lower"],
-        df_loto["ci_95_upper"] - df_loto["auroc"],
+        (df_loto["auroc"] - df_loto["ci_95_lower"]).fillna(0.0),
+        (df_loto["ci_95_upper"] - df_loto["auroc"]).fillna(0.0),
     ]
     lopo_err = [
-        df_lopo["auroc"] - df_lopo["ci_95_lower"],
-        df_lopo["ci_95_upper"] - df_lopo["auroc"],
+        (df_lopo["auroc"] - df_lopo["ci_95_lower"]).fillna(0.0),
+        (df_lopo["ci_95_upper"] - df_lopo["auroc"]).fillna(0.0),
     ]
 
-    ax.bar(x - width/2, df_loto["auroc"], width, yerr=loto_err, capsize=3, label="LOTO (Task-held-out)", color="#4A90E2", alpha=0.85)
-    ax.bar(x + width/2, df_lopo["auroc"], width, yerr=lopo_err, capsize=3, label="LOPO (Participant/Rep-held-out)", color="#50E3C2", alpha=0.85)
+    ax.bar(x - width/2, loto_vals, width, yerr=loto_err, capsize=3, label="LOTO (Task-held-out)", color="#4A90E2", alpha=0.85)
+    ax.bar(x + width/2, lopo_vals, width, yerr=lopo_err, capsize=3, label="LOPO (Participant/Rep-held-out)", color="#50E3C2", alpha=0.85)
+
+    # Annotate B2 as NOT RUN
+    b2_idx = baselines.index("B2")
+    ax.text(b2_idx, 0.15, "NOT RUN\n(DEV-08)", ha="center", va="bottom", fontsize=8, color="#7F8C8D", fontweight="bold")
 
     ax.axhline(0.50, color="#E74C3C", linestyle="--", linewidth=1, label="Chance Level (0.50)")
     ax.axhline(0.60, color="#E67E22", linestyle=":", linewidth=1, label="Design Check Threshold (0.60)")

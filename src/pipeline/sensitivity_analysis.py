@@ -116,24 +116,24 @@ class SensitivityAnalyzer:
             median_rtt = float(np.median(rtts))
             rows.append({
                 "check": "tcp_handshake_rtt_drift",
-                "description": "Mean TCP handshake RTT to meridian-tasks.vercel.app",
+                "description": "Mean TCP handshake RTT to meridian-tasks.vercel.app (unimplemented in egress; static placeholder)",
                 "metric": "mean_rtt_ms",
                 "value": mean_rtt,
-                "status": "VALIDATED",
+                "status": "RETRACTED (DEV-06)",
             })
             rows.append({
                 "check": "tcp_handshake_rtt_drift_std",
-                "description": "Std dev TCP handshake RTT to meridian-tasks.vercel.app",
+                "description": "Std dev TCP handshake RTT to meridian-tasks.vercel.app (unimplemented in egress; static placeholder)",
                 "metric": "std_rtt_ms",
                 "value": std_rtt,
-                "status": "VALIDATED",
+                "status": "RETRACTED (DEV-06)",
             })
             rows.append({
                 "check": "tcp_handshake_rtt_drift_median",
-                "description": "Median TCP handshake RTT to meridian-tasks.vercel.app",
+                "description": "Median TCP handshake RTT to meridian-tasks.vercel.app (unimplemented in egress; static placeholder)",
                 "metric": "median_rtt_ms",
                 "value": median_rtt,
-                "status": "VALIDATED",
+                "status": "RETRACTED (DEV-06)",
             })
 
         # (c) Q columns by day / class
@@ -149,19 +149,30 @@ class SensitivityAnalyzer:
                         "status": "VALIDATED",
                     })
 
-        # (d) Reported known empirical facts check
+        # (d) Reported known empirical facts check (dynamically derived from extracted features)
+        n_human_gvt1 = 0.0
+        n_human_spotify = 0.0
+        if df_features is not None and not df_features.empty:
+            human_mask = (df_features["controller"] == "human") if "controller" in df_features.columns else (
+                (df_sessions["controller"] == "human") if not df_sessions.empty and "controller" in df_sessions.columns else pd.Series([True] * len(df_features))
+            )
+            if "Q_gvt1_bytes" in df_features.columns:
+                n_human_gvt1 = float((df_features.loc[human_mask, "Q_gvt1_bytes"] > 0).sum())
+            if "Q_background_bytes" in df_features.columns:
+                n_human_spotify = float((df_features.loc[human_mask, "Q_background_bytes"] > 0).sum())
+
         rows.append({
             "check": "chrome_updater_gvt1_human_day_confound",
-            "description": "gvt1 download present in 33 of 52 human windows, 0 agent windows",
+            "description": f"gvt1 download present in {int(n_human_gvt1)} human windows, 0 agent windows",
             "metric": "human_sessions_with_gvt1",
-            "value": 33.0,
+            "value": float(n_human_gvt1),
             "status": "DOCUMENTED_CONFOUND",
         })
         rows.append({
             "check": "spotify_human_sessions_presence",
-            "description": "Spotify background in 23 human sessions, 0 agent sessions",
+            "description": f"Host background activity present in {int(n_human_spotify)} human windows, 0 agent windows",
             "metric": "human_sessions_with_spotify",
-            "value": 23.0,
+            "value": float(n_human_spotify),
             "status": "DOCUMENTED_CONFOUND",
         })
 

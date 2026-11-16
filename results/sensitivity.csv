@@ -1,6 +1,6 @@
 analysis,condition,auroc,reference_auroc,delta_auroc,notes
-edge_sessions_ablation,without_S0044_S0068_S0081,0.765625,0.7769607843137256,-0.011335784313725616,3 heavy MSN/Edge news feed sessions removed
-s0062_window_reconstruction,s0062_included_netlog_window,0.7783653846153846,0.7769607843137256,0.0014046003016590092,S0062 window duration rebuilt from Chrome NetLog boundaries (N=92)
-search_class_allocation,search_as_website_flow,0.7769607843137256,0.7769607843137256,0.0,Google search suggestions classified as website instead of D
-burst_threshold_perturbation,theta_b_50ms,0.7769607843137256,0.7769607843137256,0.0,Packet burst boundary threshold set to 50.0 ms
-burst_threshold_perturbation,theta_b_250ms,0.7769607843137256,0.7769607843137256,0.0,Packet burst boundary threshold set to 250.0 ms
+edge_sessions_ablation,without_S0044_S0068_S0081,0.6138020833333333,0.6252450980392157,-0.011443014705882382,3 heavy MSN/Edge news feed sessions removed
+s0062_window_reconstruction,s0062_included_netlog_window,0.6329326923076923,0.6252450980392157,0.00768759426847665,S0062 window duration rebuilt from Chrome NetLog boundaries (N=92)
+search_class_allocation,search_as_website_flow,0.5708333333333333,0.6252450980392157,-0.05441176470588238,Google search suggestions classified as website instead of D
+burst_threshold_perturbation,theta_b_50ms,0.6144607843137255,0.6252450980392157,-0.010784313725490158,Packet burst boundary threshold set to 50.0 ms
+burst_threshold_perturbation,theta_b_250ms,0.620343137254902,0.6252450980392157,-0.004901960784313708,Packet burst boundary threshold set to 250.0 ms

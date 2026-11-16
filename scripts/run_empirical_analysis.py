@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import scapy.all as scapy
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
@@ -65,29 +66,18 @@ FLOW_RULES_PATH = REPO_ROOT / "features" / "flow_rules.yaml"
 def extract_all_study_sessions(
     df_sessions: pd.DataFrame,
     classifier: FlowClassifier,
-    force_recompute: bool = False,
-) -> pd.DataFrame:
-    """Extracts features for all 92 study sessions, caching to processed/session_features.parquet."""
+    force_recompute: bool = True,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Extracts features for all 92 study sessions and sensitivity variants."""
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     parquet_path = PROCESSED_DIR / "session_features.parquet"
     csv_path = PROCESSED_DIR / "session_features.csv"
-    cache_path = PROCESSED_DIR / ".feature_cache.json"
 
-    if parquet_path.exists() and not force_recompute:
-        logger.info("Loading cached session features from: %s", parquet_path)
-        return pd.read_parquet(parquet_path)
-
-    cached_rows: Dict[str, Dict[str, Any]] = {}
-    if cache_path.exists() and not force_recompute:
-        try:
-            with open(cache_path, "r", encoding="utf-8") as f:
-                cached_rows = json.load(f)
-            logger.info("Loaded %d previously extracted sessions from cache.", len(cached_rows))
-        except Exception:
-            cached_rows = {}
-
-    logger.info("Extracting features from raw pcaps for 92 study sessions...")
+    logger.info("Extracting features from raw pcaps for 92 study sessions (including sensitivity variants)...")
     rows = []
+    rows_50 = []
+    rows_250 = []
+    rows_search = []
     study_sessions = df_sessions[df_sessions["kind"] == "session"].copy()
 
     for idx, row in study_sessions.iterrows():
@@ -97,55 +87,72 @@ def extract_all_study_sessions(
         if not pcap_path.exists():
             raise FileNotFoundError(f"Missing study pcap: {pcap_path}")
 
-        if sid in cached_rows:
-            rows.append(cached_rows[sid])
-            continue
-
         logger.info("Processing %s (%d/%d)...", sid, len(rows) + 1, len(study_sessions))
 
-        # Handle S0062 defect (0.007s window)
+        # Handle S0062 NetLog reconstruction boundaries (29.299 s window)
         if sid == "S0062":
-            feat = extract_session_features_from_pcap(pcap_path, sid, classifier)
-            feat["L_duration_s"] = 0.007
+            t_s0062_start = (1794047568673 + 1531642) / 1000.0
+            t_s0062_end = (1794047568673 + 1560941) / 1000.0
+            bounds = (t_s0062_start, t_s0062_end)
         else:
-            feat = extract_session_features_from_pcap(pcap_path, sid, classifier)
+            bounds = None
 
-        # Merge metadata columns without prefix
-        feat["controller"] = row["controller"]
-        feat["participant_id"] = row["participant_id"]
-        feat["task_id"] = row["task_id"]
-        feat["rep"] = int(row["rep"])
-        feat["outcome"] = row["outcome"]
-        feat["excluded"] = 1 if sid == "S0062" else int(row.get("excluded", 0))
-        feat["t_start_utc"] = row["t_start_utc"]
-        feat["t_end_utc"] = row["t_end_utc"]
+        # Read packets once from disk
+        pkts = scapy.rdpcap(str(pcap_path))
 
-        # Length diagnostic features for B4
-        feat["L_total_bytes_with_gvt1"] = feat["L_total_bytes"]
-        feat["L_n_flows_with_gvt1"] = feat["L_n_flows"]
-        feat["T_vendor_to_website_lag_s"] = 0.50 if feat["A_vendor_present"] == 1 else 0.0
+        # Primary extraction (theta_b = 100ms, search as D)
+        feat = extract_session_features_from_pcap(
+            pcap_path, sid, classifier, theta_b_sec=0.100, custom_bounds=bounds, include_search_in_website=False, packets=pkts
+        )
+        # Burst 50ms variant
+        feat_50 = extract_session_features_from_pcap(
+            pcap_path, sid, classifier, theta_b_sec=0.050, custom_bounds=bounds, include_search_in_website=False, packets=pkts
+        )
+        # Burst 250ms variant
+        feat_250 = extract_session_features_from_pcap(
+            pcap_path, sid, classifier, theta_b_sec=0.250, custom_bounds=bounds, include_search_in_website=False, packets=pkts
+        )
+        # Search-as-website variant
+        feat_search = extract_session_features_from_pcap(
+            pcap_path, sid, classifier, theta_b_sec=0.100, custom_bounds=bounds, include_search_in_website=True, packets=pkts
+        )
 
-        # All-flows T+V+C features for B5
-        for col in ["T_idle_gap_median", "T_idle_gap_cv", "T_idle_gap_entropy", "T_burst_rate",
-                    "V_up_down_ratio", "V_upload_burst_share", "C_new_flows_per_min", "C_max_concurrent"]:
-            feat[f"{col}_all"] = feat[col]
+        for f_dict in [feat, feat_50, feat_250, feat_search]:
+            # Merge metadata columns without prefix
+            f_dict["controller"] = row["controller"]
+            f_dict["participant_id"] = row["participant_id"]
+            f_dict["task_id"] = row["task_id"]
+            f_dict["rep"] = int(row["rep"])
+            f_dict["outcome"] = row["outcome"]
+            f_dict["excluded"] = 1 if sid == "S0062" else int(row.get("excluded", 0))
+            f_dict["t_start_utc"] = row["t_start_utc"]
+            f_dict["t_end_utc"] = row["t_end_utc"]
 
-        cached_rows[sid] = feat
+            # Length diagnostic features for B4
+            f_dict["L_total_bytes_with_gvt1"] = f_dict["L_total_bytes"]
+            f_dict["L_n_flows_with_gvt1"] = f_dict["L_n_flows"]
+            f_dict["T_vendor_to_website_lag_s"] = 0.50 if f_dict["A_vendor_present"] == 1 else 0.0
+
+            # All-flows T+V+C features for B5
+            for col in ["T_idle_gap_median", "T_idle_gap_cv", "T_idle_gap_entropy", "T_burst_rate",
+                        "V_up_down_ratio", "V_upload_burst_share", "C_new_flows_per_min", "C_max_concurrent"]:
+                f_dict[f"{col}_all"] = f_dict[col]
+
         rows.append(feat)
-
-        # Save cache every 5 sessions
-        if len(rows) % 5 == 0:
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(cached_rows, f, indent=2)
-
-    with open(cache_path, "w", encoding="utf-8") as f:
-        json.dump(cached_rows, f, indent=2)
+        rows_50.append(feat_50)
+        rows_250.append(feat_250)
+        rows_search.append(feat_search)
 
     df_features = pd.DataFrame(rows)
     df_features.to_parquet(parquet_path, index=False)
     df_features.to_csv(csv_path, index=False)
     logger.info("Saved %d extracted session feature rows to %s", len(df_features), parquet_path)
-    return df_features
+
+    df_burst_50 = pd.DataFrame(rows_50)
+    df_burst_250 = pd.DataFrame(rows_250)
+    df_search_as_website = pd.DataFrame(rows_search)
+
+    return df_features, df_burst_50, df_burst_250, df_search_as_website
 
 
 def main():
@@ -173,11 +180,15 @@ def main():
 
     # 2. Feature Extraction
     classifier = FlowClassifier(rules_path=FLOW_RULES_PATH)
-    df_features = extract_all_study_sessions(df_raw_sessions, classifier)
+    df_features, df_burst_50_all, df_burst_250_all, df_search_web_all = extract_all_study_sessions(df_raw_sessions, classifier)
 
     # S0062 exclusion enforcement for primary analysis population
-    primary_mask = df_features["session_id"] != "S0062"
+    primary_mask = (df_features["session_id"] != "S0062") & (df_features["excluded"] == 0)
     df_primary_sess = df_features.loc[primary_mask].copy().reset_index(drop=True)
+    df_burst_50 = df_burst_50_all.loc[primary_mask].copy().reset_index(drop=True)
+    df_burst_250 = df_burst_250_all.loc[primary_mask].copy().reset_index(drop=True)
+    df_search_as_website = df_search_web_all.loc[primary_mask].copy().reset_index(drop=True)
+
     n_primary = len(df_primary_sess)
     logger.info("Primary analysis population: N = %d (S0062 excluded)", n_primary)
     assert n_primary == 91, f"Expected 91 primary sessions, got {n_primary}"
@@ -202,6 +213,29 @@ def main():
         })
     df_desc = pd.DataFrame(desc_rows)
     df_desc.to_csv(RESULTS_DIR / "descriptives.csv", index=False)
+
+    # 3b. Flow-Class Byte Accounting Audit Table (Item 5 / Gate 4 Validation)
+    logger.info("Step 2b: Computing flow-class byte accounting table (results/byte_accounting.csv)...")
+    byte_rows = []
+    for (ctrl, task), group in df_primary_sess.groupby(["controller", "task_id"]):
+        byte_rows.append({
+            "controller": ctrl,
+            "task_id": task,
+            "n_sessions": len(group),
+            "website_bytes_sum": float(group["website_bytes"].sum()),
+            "website_bytes_median": float(group["website_bytes"].median()),
+            "search_bytes_sum": float(group["search_bytes"].sum()),
+            "search_bytes_median": float(group["search_bytes"].median()),
+            "search_sessions_count": int((group["search_bytes"] > 0).sum()),
+            "os_background_bytes_sum": float(group["os_background_bytes"].sum()),
+            "os_background_bytes_median": float(group["os_background_bytes"].median()),
+            "vendor_bytes_sum": float(group["vendor_bytes"].sum()),
+            "vendor_bytes_median": float(group["vendor_bytes"].median()),
+            "unknown_bytes_sum": float(group["unknown_bytes"].sum()),
+            "unknown_bytes_median": float(group["unknown_bytes"].median()),
+        })
+    df_bytes = pd.DataFrame(byte_rows)
+    df_bytes.to_csv(RESULTS_DIR / "byte_accounting.csv", index=False)
 
     # 4. Effect Sizes (Cliff's Delta with 95% Cluster-Bootstrap CI)
     logger.info("Step 3: Computing effect sizes (results/effect_sizes.csv)...")
@@ -253,7 +287,7 @@ def main():
     loto_folds = generate_loto_folds(df_primary_sess)
     lopo_folds = generate_lopo_folds(df_primary_sess, n_folds=10)
 
-    for baseline_id in ["B0", "B1", "B2", "B3", "B4", "B4_gvt1_diag", "B5", "B6", "B6_rf_check", "B7", "B8"]:
+    for baseline_id in ["B0", "B1", "B2", "B3", "B4", "B4_duration_only", "B4_gvt1_diag", "B5", "B6", "B6_rf_check", "B7", "B8"]:
         feat_pool = BASELINE_FEATURE_POOLS[baseline_id]
         desc = BASELINE_DESCRIPTIONS.get(baseline_id, baseline_id)
         model_type = "random_forest" if baseline_id == "B6_rf_check" else "logistic_regression"
@@ -273,6 +307,22 @@ def main():
                     "n_features": 0,
                     "features_used": "none",
                     "description": desc,
+                })
+                continue
+
+            if baseline_id == "B2":
+                base_rows.append({
+                    "baseline": baseline_id,
+                    "split": split_name,
+                    "model": "NOT_RUN",
+                    "auroc": np.nan,
+                    "ci_95_lower": np.nan,
+                    "ci_95_upper": np.nan,
+                    "f1": np.nan,
+                    "n_sessions": n_primary,
+                    "n_features": len(feat_pool),
+                    "features_used": "+".join(feat_pool),
+                    "description": "JA4 client hello match (NOT RUN - automated JA4 extraction unverified on egress; client match rests on Person A locality audit 8daaf6152771)",
                 })
                 continue
 
@@ -355,7 +405,7 @@ def main():
             "null_std_auroc": nc1_results["lopo"].null_std_auroc,
             "empirical_p_value": nc1_results["lopo"].empirical_p_value,
             "passed_null_check": nc1_results["lopo"].passed_null_check,
-            "notes": "Null distribution centers near 0.50 ([0.45, 0.55])",
+            "notes": "Pooled-LOPO structural fold null mean is 0.431 +/- 0.084 (empirical p=0.004975); B6 exceeds null",
         },
         {
             "control_id": "NC2_PRIMARY",
@@ -400,25 +450,20 @@ def main():
     edge_res = analyzer.evaluate_edge_sessions_sensitivity(df_primary_sess, df_primary_sess)
 
     # Sensitivity 4: S0062 reconstructed window
-    # Create N=92 dataset with reconstructed S0062
+    # Create N=92 dataset with reconstructed S0062 (features directly extracted from NetLog window)
     df_all_92 = df_features.copy()
     s0062_idx = df_all_92["session_id"] == "S0062"
-    df_all_92.loc[s0062_idx, "L_duration_s"] = 29.299  # Reconstructed from NetLog
     df_all_92.loc[s0062_idx, "excluded"] = 0
-    # Impute S0062 core features using human median
-    for col in core_features:
-        df_all_92.loc[s0062_idx, col] = df_primary_sess.loc[df_primary_sess["controller"] == "human", col].median()
-
     s0062_res = analyzer.evaluate_s0062_reconstructed_window(df_all_92, df_all_92)
 
     # Sensitivity 5: Search class handling
-    search_res = analyzer.evaluate_search_class_handling(df_primary_sess, df_primary_sess, df_primary_sess)
+    search_res = analyzer.evaluate_search_class_handling(df_primary_sess, df_primary_sess, df_search_as_website)
 
     # Sensitivity 6: Burst thresholds
     burst_features_dict = {
-        50.0: df_primary_sess,
+        50.0: df_burst_50,
         100.0: df_primary_sess,
-        250.0: df_primary_sess,
+        250.0: df_burst_250,
     }
     burst_res = analyzer.evaluate_burst_thresholds(
         df_sessions=df_primary_sess,
@@ -501,6 +546,7 @@ def main():
 
     output_files_list = [
         "descriptives.csv",
+        "byte_accounting.csv",
         "effect_sizes.csv",
         "baseline_results.csv",
         "negative_controls.csv",
@@ -520,7 +566,7 @@ def main():
 
     manifest_data = {
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "code_revision": "d1ebafa",
+        "code_revision": "review/data-provider-corrections-2026-11-17",
         "dataset": "pilot-v1",
         "sessions_csv_sha256": "a648da5155d71fa4f02895c0e410c1a51127d60dd5ddd0611246f55a8b545188",
         "random_seeds": {
