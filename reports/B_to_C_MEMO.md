@@ -145,14 +145,14 @@ From `results/family_dropout.csv`:
 - **Drop Volume ($V$):** $\text{AUROC} = 0.590$ ($\Delta = -0.035$).
 - **Drop Concurrency ($C$):** $\text{AUROC} = 0.645$ ($\Delta = +0.020$).
 
-**Conclusion:** Micro-temporal pacing ($T$) is the sole essential behavioral driver in B6.
+**Conclusion:** Feature family dropout indicates that within the tested six-feature representation, micro-temporal pacing ($T$) is the primary source of separability in B6: dropping timing features collapses LOPO AUROC to $0.456$ (below chance), whereas dropping volume ($V$) or concurrency ($C$) produces minimal degradation ($0.590$ and $0.645$). This reflects feature sensitivity within the evaluated feature space rather than proving that non-temporal signals could never discriminate.
 
 ---
 
 ## 9. Negative Controls and Diagnostic Audits
 
 1. **NC1 (Within-Task Label Permutations, 200 runs):**
-   - **LOTO:** Null mean $\text{AUROC} = 0.487 \pm 0.058$ ($p = 0.02$, `passed_null_check = True`). Balanced task folds center near chance ($0.50$). Observed B6 ($0.606$) exceeds null.
+   - **LOTO:** Null mean $\text{AUROC} = 0.487 \pm 0.058$ ($p = 0.02$, `passed_null_check = True`). While balanced task folds center near chance ($0.50$), interpreting LOTO as unbiased requires the assumptions of label exchangeability within task groups and cross-fold calibration; observed B6 ($0.606$) exceeds the empirical null.
    - **LOPO:** Null mean $\text{AUROC} = 0.417 \pm 0.093$. Observed B6 ($0.625$) exceeds all 200 permuted null runs ($p = (0+1)/(200+1) = 0.004975$). Pooled out-of-fold scoring across imbalanced participant folds depresses the empirical null below 0.50.
 2. **NC2 (Collection-Day Control, Human 7 Nov vs. Human 9 Nov):**
    - Observed pooled $\text{AUROC} = 0.289$, Macro $F_1 = 0.269$. Reflects structural fold-level distribution shifts between participants.
@@ -171,13 +171,24 @@ From `results/sensitivity.csv`:
 4. **Burst Threshold Perturbation (50 ms):** $\text{AUROC} = 0.6145$ ($\Delta = -0.0108$).
 5. **Burst Threshold Perturbation (250 ms):** $\text{AUROC} = 0.6203$ ($\Delta = -0.0049$).
 6. **Unequal Rounds Ablation (Round 1 Only, $N=80$):** $\text{AUROC} = 0.8075$ ($\Delta = +0.1823$).
-7. **Random Forest Non-Linear Check:** $\text{AUROC} = 0.7444$ ($\Delta = +0.1191$).
+7. **Random Forest Non-Linear Check:** $\text{AUROC} = 0.7444$ ($\Delta = +0.1191$). Serves as an alternative non-linear classifier check on the six website features, not as independent proof of timing importance without separate RF ablation.
 
 All sensitivity variations have non-zero deltas and reflect genuine packet-derived calculations.
 
 ---
 
-## 11. Binding Decision Rule Verdict
+## 11. Required Methodological Limitations
+
+The following five methodological limitations must be prominently retained in all synthesis reports and manuscripts:
+1. **Macroscopic Duration Confound:** Multi-feature length baseline **B4** (`L_duration_s`, `L_total_bytes`, `L_n_flows`) achieves **LOTO $\text{AUROC} = 0.725$**, substantially outperforming primary website model **B6** ($0.606$ LOTO / $0.625$ LOPO). On unseen tasks, session length alone separates at least as well as micro-timing.
+2. **Un-Interleaved Collection Day Confound:** All 40 AI sessions were recorded on 6 November 2026; all 52 human sessions were recorded on 7 and 9 November 2026. Environmental and caching differences correlated with collection date cannot be disentangled from controller behavior.
+3. **Baseline B2 (JA4 TLS Fingerprinting) NOT RUN:** Automated JA4 extraction was unverified on egress captures and formally designated `NOT RUN` (DEV-08). Browser fingerprint equivalence rests on Person A's localhost inspection (`8daaf6152771`).
+4. **TCP Handshake RTT Retraction (DEV-06):** WAN round-trip time in `drift_checks.csv` used an injected benchmark scalar ($25.40\text{ ms}$) and was formally retracted; RTT constancy cannot rule out network latency shifts.
+5. **Baseline B7 Equivalence to B6 (DEV-07):** Baseline B7 feature pool reuses B6 features formatted as duration-normalized rates and ratios, producing numerically identical performance metrics rather than an independent architecture.
+
+---
+
+## 12. Binding Decision Rule Verdict
 
 Under `analysis/PREREG.md` §7:
 1. Negative control B2 resolved as `NOT RUN` (DEV-08); browser match verified via Person A localhost audit.

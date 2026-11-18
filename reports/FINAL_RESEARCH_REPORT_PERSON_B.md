@@ -79,7 +79,7 @@ This report delivers the authoritative empirical findings, statistical falsifica
 ### Key Executive Conclusions:
 1. **Moderate Client-Side Separability:** Under 10-fold LOPO cross-validation ($N = 91$), the corrected primary model (**`B6_core6`**), restricted strictly to six standardized website-only features, achieves an $\text{AUROC} = 0.625245$ (95% CI $[0.501892, 0.742136]$, Macro $F_1 = 0.366197$).
 2. **Prominent Duration Confound:** Multi-feature length baseline **B4** (`L_duration_s`, `L_total_bytes`, `L_n_flows`) achieves **LOTO $\text{AUROC} = 0.725000$** and **LOPO $\text{AUROC} = 0.760294$**, substantially outperforming the headline website micro-behavior model B6 ($0.606$ LOTO / $0.625$ LOPO). Session duration alone (`B4_duration_only`) achieves **LOTO $\text{AUROC} = 0.552941$** and **LOPO $\text{AUROC} = 0.574020$**. Macroscopic task duration and byte count remain dominant covariates.
-3. **Temporal Dynamics as the Essential Micro-Driver:** Feature family dropout demonstrates that micro-temporal pacing ($T$) is the sole essential behavioral driver in B6. Dropping timing features collapses LOPO AUROC from $0.625$ to $0.456$ (below chance), whereas dropping volume ($V$) or concurrency ($C$) leaves performance at $0.590$ and $0.645$.
+3. **Primary Attribution to Micro-Temporal Dynamics ($T$):** Feature family dropout indicates that within the tested six-feature representation, micro-temporal pacing ($T$) is the primary source of separability in B6: dropping timing features collapses LOPO AUROC from $0.625$ to $0.456$ (below chance), whereas dropping volume ($V$) or concurrency ($C$) causes minimal degradation ($0.590$ and $0.645$). This reflects sensitivity within the evaluated feature space rather than establishing that non-temporal signals could never discriminate.
 4. **Generalization Gap Across Tasks:** Under 4-fold LOTO cross-validation, B6 AUROC is $0.606373$ (95% CI $[0.429472, 0.792863]$). Because the 95% confidence interval crosses chance ($0.50$), generalizability across arbitrary web tasks cannot be asserted from this pilot.
 5. **Binding Pilot Verdict:** Formally maintained as **CONDITIONAL GO**. Separability is demonstrable within this capture, but operational deployment claims require an interleaved multi-day confirmatory study.
 
@@ -175,7 +175,7 @@ Table 13.1 presents the complete baseline hierarchy extracted bit-for-bit from `
 ## 14. Random Forest Secondary Verification
 
 A 500-tree Random Forest classifier (`B6_rf_check`, fixed seed `20261106`, un-tuned default hyperparameters) was evaluated on the identical six website features:
-- **LOPO Performance:** $\text{AUROC} = 0.744363$ (95% CI $[0.600722, 0.849423]$, Macro $F_1 = 0.666667$). This represents a $+0.119118$ increase in AUROC over linear Logistic Regression, indicating non-linear interactions among temporal pacing features.
+- **LOPO Performance:** $\text{AUROC} = 0.744363$ (95% CI $[0.600722, 0.849423]$, Macro $F_1 = 0.666667$). This represents a $+0.119118$ increase in AUROC over linear Logistic Regression under LOPO cross-validation, demonstrating that tree-based decision surfaces can capture non-linear relationships across the six core features; however, because feature importance and ablation were not separately conducted for the Random Forest, it serves as an alternative classifier check rather than independent proof of timing-specific importance.
 - **LOTO Performance:** $\text{AUROC} = 0.623775$ (95% CI $[0.504079, 0.762726]$, Macro $F_1 = 0.465753$).
 
 ---
@@ -195,7 +195,7 @@ Table 15.1 details all rows from `results/family_dropout.csv`:
 | **B6** | Volume ($V$) | $T + C$ (4) | 0.590441 | $-0.034804$ | Minor degradation. |
 | **B6** | Concurrency ($C$) | $T + V$ (4) | 0.645343 | $+0.020098$ | Negligible change. |
 
-**Key Takeaway:** Temporal pacing features ($T$) are the sole essential behavioral driver. Dropping timing features drives performance to $0.456$ (below chance), proving that volume and concurrency alone provide zero independent discrimination.
+**Key Takeaway:** Micro-temporal pacing features ($T$) drive model separability within this feature pool. Dropping timing features collapses performance to $0.456$ (below chance), whereas removing volume or concurrency retains moderate separability. This demonstrates that for the specific features evaluated, separability is driven by idle gap timing; it should not be construed as a general proof that volume or concurrency features in other formulations lack diagnostic value.
 
 ---
 
@@ -203,7 +203,7 @@ Table 15.1 details all rows from `results/family_dropout.csv`:
 
 ### 17.1 NC1: Within-Task Label Permutations (200 Iterations)
 Labels were permuted 200 times strictly within each task partition independently:
-- **LOTO Permutations:** Null distribution mean $\text{AUROC} = 0.487162 \pm 0.058390$ (range $[0.3382, 0.6544]$). The null centers near chance ($0.487 \approx 0.50$), proving that task-stratified LOTO evaluation introduces zero bias. Zero of 200 permuted iterations reached the observed LOTO AUROC of $0.606373$ ($p = 0.02$, `passed_null_check = True`).
+- **LOTO Permutations:** Null distribution mean $\text{AUROC} = 0.487162 \pm 0.058390$ (range $[0.3382, 0.6544]$). The null centers near chance ($0.487 \approx 0.50$). While task stratification avoids fold-level class imbalance, treating LOTO as unbiased requires the assumptions of label exchangeability within task groups and identical cross-fold calibration; under these assumptions, zero of 200 permuted iterations reached the observed LOTO AUROC of $0.606373$ ($p = 0.02$, `passed_null_check = True`).
 - **LOPO Permutations:** Null distribution mean $\text{AUROC} = 0.416892 \pm 0.092941$ (range $[0.1975, 0.6176]$). Zero of 200 permuted iterations reached the observed LOPO AUROC of $0.625245$ (Empirical $p = (0+1)/(200+1) = 0.004975$).
 - **Statistical Root Cause of LOPO Null Depression ($0.417$):** While unpooled within-fold AUROCs average near chance, globally pooling out-of-fold predicted probabilities across folds with unequal group sizes and differing intercepts systematically depresses pooled AUROC below 0.50 under the null hypothesis. Observed performance ($0.625$) strictly exceeds the empirical null distribution.
 
@@ -244,10 +244,12 @@ In `results/drift_checks.csv`, TCP handshake round-trip time ($25.40\text{ ms}$,
 
 ## 20. Important Implementation and Data Limitations
 
-1. **Duration Confound Dominance:** Multi-feature length baseline **B4** (`L_duration_s`, `L_total_bytes`, `L_n_flows`) achieves **LOTO $\text{AUROC} = 0.725$**, outperforming the primary website micro-behavior model **B6** ($\text{AUROC} = 0.606$). On unseen tasks, macroscopic session duration and byte count provide stronger discrimination than micro-timing.
-2. **Un-Interleaved Day Confound:** All 40 AI agent sessions were recorded on 6 November 2026; human sessions were recorded on 7 and 9 November 2026. Network or server-side caching conditions correlated with collection day cannot be fully disentangled from agent behavior.
-3. **B2 (JA4) Implementation Scope:** Automated JA4 extraction on egress captures was unverified and formally designated `NOT RUN` (DEV-08). Client TLS fingerprint equivalence rests on Person A's localhost inspection (`8daaf6152771`).
-4. **Single Hardware and Software Stack:** Data collection utilized a single host laptop (Windows 11, MediaTek Wi-Fi), a single Google Chrome build (`157.0.8103.38`), and a single agent framework (Browser Use v0.13.14 with Gemini 2.5 Flash).
+1. **Duration Confound Dominance:** Multi-feature length baseline **B4** (`L_duration_s`, `L_total_bytes`, `L_n_flows`) achieves **LOTO $\text{AUROC} = 0.725$**, substantially outperforming the primary website micro-behavior model **B6** ($\text{AUROC} = 0.606$). On unseen tasks, macroscopic session duration and byte count provide stronger discrimination than client egress micro-timing.
+2. **Un-Interleaved Day Confound:** All 40 AI agent sessions were recorded on 6 November 2026; all 52 human sessions were recorded on 7 and 9 November 2026. Environmental factors, local network load, and server-side caching conditions correlated with collection date cannot be fully disentangled from agent behavior.
+3. **Baseline B2 (JA4 TLS Fingerprinting) NOT RUN:** Automated JA4 extraction on egress captures was unverified and formally designated `NOT RUN` (DEV-08). Client TLS fingerprint equivalence rests on Person A's localhost inspection (`8daaf6152771`), not on pipeline feature extraction.
+4. **TCP Handshake RTT Retracted:** The reported WAN round-trip time in `drift_checks.csv` used a static benchmark scalar ($25.4\text{ ms}$) and was formally retracted under DEV-06. Egress RTT constancy cannot be cited to rule out wide-area network latency shifts.
+5. **Baseline B7 Equivalence to B6:** Baseline B7 feature pool reformulates B6 features as duration-normalized rates and dimensionless ratios, producing numerically identical performance metrics under DEV-07 rather than providing an independent architecture.
+6. **Single Hardware and Software Stack:** Data collection utilized a single host laptop (Windows 11, MediaTek Wi-Fi), a single Google Chrome build (`157.0.8103.38`), and a single agent framework (Browser Use v0.13.14 with Gemini 2.5 Flash).
 
 ---
 

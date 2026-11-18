@@ -22,7 +22,7 @@ The package contains exclusively derived, aggregated tabular results. It contain
    - Contains the pre-registered feature family dropout analysis for models **B5** (all flows) and **B6** (website flows only).
    - Evaluates the effect of dropping timing ($T$), volume ($V$), and concurrency ($C$) families independently.
    - Evaluated on the 10-fold Leave-One-Participant-Out (LOPO) split ($N = 91$).
-   - Shows that dropping $T$ collapses B6 performance from $0.625$ to $0.456$ (below chance), proving temporal dynamics are the sole essential driver.
+   - Shows that dropping $T$ collapses B6 performance from $0.625$ to $0.456$ (below chance), indicating micro-temporal pacing features are the primary source of separability within this feature pool.
 2. `sensitivity.csv`:
    - Contains genuine, newly re-extracted model perturbation and sensitivity analyses against the reference B6 LOPO AUROC ($0.625245$):
      - Heavy Edge/MSN news feed session ablation (excluding S0044, S0068, S0081; $N=88$, $\text{AUROC} = 0.6138$, $\Delta = -0.0114$).
